@@ -47,6 +47,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SerialPortSettings.cs" />
     <Compile Include="SerialPortsPool.cs" />
+    <Compile Include="SimpleSettingsContainer.cs" />
     <Compile Include="SimpleSettingsProvider.cs" />
     <Compile Include="SimpleSettingsProviderXML.cs" />
     <Compile Include="StrUtils.cs" />
