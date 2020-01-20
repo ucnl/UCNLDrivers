@@ -1,7 +1,7 @@
 ﻿
 namespace UCNLDrivers
 {    
-    public abstract class SimpleSettingsProvider<T> where T : class, new()
+    public abstract class SimpleSettingsProvider<T> where T : SimpleSettingsContainer, new()
     {
         #region Properties
 

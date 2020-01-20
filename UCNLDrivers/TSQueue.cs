@@ -81,16 +81,12 @@ namespace UCNLDrivers
             if (queue.Count >= MaxQueueSize)
             {
                 queue.Dequeue();
-                if (QueueOverflow != null)
-                    QueueOverflow(this, new EventArgs());
+                QueueOverflow.Rise(this, new EventArgs());
             }
 
             Interlocked.Decrement(ref synLock);
 
-            if (ItemEnqueued != null)
-            {
-                ItemEnqueued.BeginInvoke(this, new EventArgs(), null, null);
-            }
+            ItemEnqueued.BeginRise(this, new EventArgs(), null, null);
         }
 
         /// <summary>

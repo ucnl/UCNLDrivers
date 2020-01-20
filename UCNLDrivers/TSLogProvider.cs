@@ -133,7 +133,7 @@ namespace UCNLDrivers
             var result = sb.ToString();
             queue.Enqueue(result);
 
-            if (TextAddedEvent != null) TextAddedEvent(this, new TextAddedEventArgs(result));
+            TextAddedEvent.Rise(this, new TextAddedEventArgs(result));
 
             return result;
         }

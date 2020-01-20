@@ -3,8 +3,8 @@ using System.IO;
 using System.Xml.Serialization;
 
 namespace UCNLDrivers
-{   
-    public class SimpeSettingsProviderXML<T> : SimpleSettingsProvider<T> where T : class, new()
+{
+    public class SimpeSettingsProviderXML<T> : SimpleSettingsProvider<T> where T : SimpleSettingsContainer, new()
     {
         #region Mehtods
 
