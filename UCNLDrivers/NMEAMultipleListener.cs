@@ -383,7 +383,17 @@ namespace UCNLDrivers
     {
         #region Properties
 
-        Dictionary<int, StringBuilder> buffer;
+        readonly int buffer_size = 4096;
+        Dictionary<int, byte[]> buffer;
+        Dictionary<int, int> bIdx;
+        Dictionary<int, bool> isSntStarted;
+
+        static byte nmeaSntStartByte = Convert.ToByte(NMEAParser.SentenceStartDelimiter);
+        static byte nmeaEndByte = Convert.ToByte(NMEAParser.SentenceEndDelimiter[NMEAParser.SentenceEndDelimiter.Length - 1]);
+
+
+
+        Dictionary<int, StringBuilder> buffer_;
         Dictionary<int, List<SatelliteData>> fullSatellitesData;
 
         private delegate void ProcessCommandDelegate(int sourceID, TalkerIdentifiers talkerID, object[] parameters);
@@ -402,7 +412,11 @@ namespace UCNLDrivers
         {
             #region buffer
 
-            buffer = new Dictionary<int, StringBuilder>();
+            //buffer_ = new Dictionary<int, StringBuilder>();
+            buffer = new Dictionary<int, byte[]>();
+            bIdx = new Dictionary<int, int>();
+            isSntStarted = new Dictionary<int, bool>();
+
             fullSatellitesData = new Dictionary<int,List<SatelliteData>>();
 
             #endregion
@@ -436,36 +450,82 @@ namespace UCNLDrivers
 
         #region Public
 
-        public void ProcessIncoming(int sourceID, string data)
+        public void ProcessIncoming(int sourceID, byte[] data)
         {
             if (!buffer.ContainsKey(sourceID))
-                buffer.Add(sourceID, new StringBuilder());
-
-            buffer[sourceID].Append(data);
-            var temp = buffer[sourceID].ToString();
-
-            int lIndex = temp.LastIndexOf(NMEAParser.SentenceEndDelimiter);
-            if (lIndex >= 0)
             {
-                buffer[sourceID].Remove(0, lIndex + 2);
-                if (lIndex + 2 < temp.Length)
-                    temp = temp.Remove(lIndex + 2);
-
-                temp = temp.Trim(new char[] { '\0' });
-
-                int startIdx = temp.IndexOf(NMEAParser.SentenceStartDelimiter);
-                if (startIdx > 0)
-                    temp = temp.Remove(0, startIdx);
-
-                var lines = temp.Split(NMEAParser.SentenceEndDelimiter.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
-              
-                for (int i = 0; i < lines.Length; i++)
-                        Parse(sourceID, string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter));                
+                buffer.Add(sourceID, new byte[buffer_size]);
+                bIdx.Add(sourceID, 0);
+                isSntStarted.Add(sourceID, false);
             }
 
-            if (buffer[sourceID].Length >= ushort.MaxValue)
-                buffer[sourceID].Remove(0, short.MaxValue);
-        }        
+            for (int i = 0; i < data.Length; i++)
+            {
+                if (data[i] == nmeaSntStartByte)
+                {
+                    isSntStarted[sourceID] = true;
+                    Array.Clear(buffer[sourceID], 0, buffer[sourceID].Length);
+                    bIdx[sourceID] = 0;
+                    buffer[sourceID][bIdx[sourceID]] = data[i];
+                    bIdx[sourceID]++;
+                }
+                else
+                {
+                    if (isSntStarted[sourceID])
+                    {
+                        buffer[sourceID][bIdx[sourceID]] = data[i];
+                        bIdx[sourceID]++;
+
+                        if (data[i] == nmeaEndByte)
+                        {
+                            isSntStarted[sourceID] = false;
+                            Parse(sourceID, Encoding.ASCII.GetString(buffer[sourceID], 0, bIdx[sourceID]));
+                        }
+                        else
+                        {
+                            if (bIdx[sourceID] >= buffer[sourceID].Length - 1)
+                                isSntStarted[sourceID] = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        public void ProcessIncoming(int sourceID, string data)
+        {
+            ProcessIncoming(sourceID, Encoding.ASCII.GetBytes(data));
+        }
+
+        //public void ProcessIncoming(int sourceID, string data)
+        //{
+        //    if (!buffer_.ContainsKey(sourceID))
+        //        buffer_.Add(sourceID, new StringBuilder());
+
+        //    buffer_[sourceID].Append(data);
+        //    var temp = buffer_[sourceID].ToString();
+
+        //    int lIndex = temp.LastIndexOf(NMEAParser.SentenceEndDelimiter);
+        //    if (lIndex >= 0)
+        //    {
+        //        buffer_[sourceID].Remove(0, lIndex + 2);
+        //        if (lIndex + 2 < temp.Length)
+        //            temp = temp.Remove(lIndex + 2);
+
+        //        temp = temp.Trim(new char[] { '\0' });
+
+        //        int startIdx = temp.IndexOf(NMEAParser.SentenceStartDelimiter);
+        //        if (startIdx > 0)
+        //            temp = temp.Remove(0, startIdx);
+
+        //        var lines = temp.Split(NMEAParser.SentenceEndDelimiter.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+              
+        //        for (int i = 0; i < lines.Length; i++)
+        //                Parse(sourceID, string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter));                
+        //    }
+
+        //    if (buffer_[sourceID].Length >= ushort.MaxValue)
+        //        buffer_[sourceID].Remove(0, short.MaxValue);
+        //}        
 
         #endregion
 
@@ -567,13 +627,13 @@ namespace UCNLDrivers
         {           
             if (RMCSentenceReceived != null)
             {
-                DateTime tStamp = (DateTime)parameters[0];
+                DateTime tStamp = parameters[0] == null ? DateTime.MinValue : (DateTime)parameters[0];
 
                 var latitude = doubleNullChecker(parameters[2]);
                 var longitude = doubleNullChecker(parameters[4]);
                 var groundSpeed = doubleNullChecker(parameters[6]);
                 var courseOverGround = doubleNullChecker(parameters[7]);
-                var dateTime = (DateTime)parameters[8];
+                DateTime dateTime = parameters[8] == null ? DateTime.MinValue : (DateTime)parameters[8];
                 var magneticVariation = doubleNullChecker(parameters[9]);
 
                 bool isValid = (parameters[1].ToString() != "Invalid") &&

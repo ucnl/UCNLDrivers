@@ -32,7 +32,15 @@ namespace UCNLDrivers
 
         public abstract bool IsOpen { get; }
 
-        StringBuilder buffer;
+        StringBuilder buffer_;
+
+        byte[] buffer = new byte[8192];
+        int bIdx = 0;
+        bool isSntStarted = false;
+
+        static byte nmeaSntStartByte = Convert.ToByte(NMEAParser.SentenceStartDelimiter);
+        static byte nmeaEndByte = Convert.ToByte(NMEAParser.SentenceEndDelimiter[NMEAParser.SentenceEndDelimiter.Length - 1]);
+
 
         #endregion
 
@@ -48,15 +56,57 @@ namespace UCNLDrivers
 
         #region Protected
 
+        protected void OnIncomingData(byte[] data)
+        {
+            for (int i = 0; i < data.Length; i++)
+            {
+                if (data[i] == nmeaSntStartByte)
+                {
+                    isSntStarted = true;
+                    Array.Clear(buffer, 0, buffer.Length);
+                    bIdx = 0;
+                    buffer[bIdx] = data[i];
+                    bIdx++;
+                }
+                else
+                {
+                    if (isSntStarted)
+                    {
+                        buffer[bIdx] = data[i];
+                        bIdx++;
+
+                        if (data[i] == nmeaEndByte)
+                        {
+                            isSntStarted = false;
+                            NewNMEAMessage.Rise(this,
+                                new NewNMEAMessageEventArgs(Encoding.ASCII.GetString(buffer, 0, bIdx)));
+                        }
+                        else
+                        {
+                            if (bIdx >= buffer.Length - 1)
+                                isSntStarted = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        protected void OnIncomingDataEx(string data)
+        {
+            var dataBytes = Encoding.ASCII.GetBytes(data);
+            OnIncomingData(dataBytes);
+        }
+
+
         protected void OnIncomingData(string data)
         {
-            buffer.Append(data);
-            var temp = buffer.ToString();
+            buffer_.Append(data);
+            var temp = buffer_.ToString();
 
             int lIndex = temp.LastIndexOf(NMEAParser.SentenceEndDelimiter);
             if (lIndex >= 0)
             {
-                buffer = buffer.Remove(0, lIndex + 2);
+                buffer_ = buffer_.Remove(0, lIndex + 2);
                 if (lIndex + 2 < temp.Length)
                     temp = temp.Remove(lIndex + 2);
 
@@ -75,18 +125,26 @@ namespace UCNLDrivers
                 }
             }
 
-            if (buffer.Length >= ushort.MaxValue)
-                buffer.Remove(0, short.MaxValue);
+            if (buffer_.Length >= ushort.MaxValue)
+                buffer_.Remove(0, short.MaxValue);
         }
 
         protected void OnConnectionOpening()
         {
-            buffer = new StringBuilder();
+            buffer_ = new StringBuilder();
+
+            Array.Clear(buffer, 0, buffer.Length);
+            isSntStarted = false;
+            bIdx = 0;
         }
 
         protected void OnConnectionClosing()
         {
-            buffer = new StringBuilder();
+            buffer_ = new StringBuilder();
+            
+            Array.Clear(buffer, 0, buffer.Length);
+            isSntStarted = false;
+            bIdx = 0;
         }
 
         #endregion

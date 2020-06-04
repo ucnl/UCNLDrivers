@@ -28,7 +28,7 @@ namespace UCNLDrivers
         #region Constructor
 
         public LogEventArgs(LogLineType eventType, Exception ex)
-            : this(eventType, ex.StackTrace)
+            : this(eventType, string.Format("{0} {1}", ex.Message, ex.StackTrace))
         {
         }
         
