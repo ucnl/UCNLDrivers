@@ -42,7 +42,7 @@ namespace UCNLDrivers
 
     #endregion
 
-    #region Custom EventArgs   
+    #region Custom EventArgs
 
     public class NMEAMessageEventArgs : EventArgs
     {
@@ -393,7 +393,7 @@ namespace UCNLDrivers
 
 
 
-        Dictionary<int, StringBuilder> buffer_;
+        //Dictionary<int, StringBuilder> buffer_;
         Dictionary<int, List<SatelliteData>> fullSatellitesData;
 
         private delegate void ProcessCommandDelegate(int sourceID, TalkerIdentifiers talkerID, object[] parameters);
@@ -640,7 +640,7 @@ namespace UCNLDrivers
                                (!double.IsNaN(latitude)) &&
                                (!double.IsNaN(longitude)) &&
                                (!double.IsNaN(groundSpeed)) &&
-                               (!double.IsNaN(courseOverGround)) &&
+                               //(!double.IsNaN(courseOverGround)) &&
                                (parameters[11].ToString() != "N");
 
                 if (isValid)
