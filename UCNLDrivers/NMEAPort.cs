@@ -41,7 +41,6 @@ namespace UCNLDrivers
         static byte nmeaSntStartByte = Convert.ToByte(NMEAParser.SentenceStartDelimiter);
         static byte nmeaEndByte = Convert.ToByte(NMEAParser.SentenceEndDelimiter[NMEAParser.SentenceEndDelimiter.Length - 1]);
 
-
         #endregion
 
         #region Methods

@@ -34,6 +34,9 @@ namespace UCNLDrivers
         bool disposed = false;
         int writeLock = 0;
         int readLock = 0;
+
+        bool pendingClose = false;
+
         SerialPort serialPort;
 
         public SerialPortSettings PortSettings { get; private set; }
@@ -155,8 +158,11 @@ namespace UCNLDrivers
 
             try
             {
-                OnConnectionClosing();                
+                pendingClose = true;
+                Thread.Sleep(serialPort.ReadTimeout);
+                OnConnectionClosing();
                 serialPort.Close();
+                pendingClose = false;
             }
             catch (Exception ex)
             {
@@ -219,24 +225,28 @@ namespace UCNLDrivers
 
         private void serialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            while (Interlocked.CompareExchange(ref readLock, 1, 0) != 0)
-                Thread.SpinWait(1);
+            if (!pendingClose)
+            {
+                while (Interlocked.CompareExchange(ref readLock, 1, 0) != 0)
+                    Thread.SpinWait(1);
 
-            int bytesToRead = serialPort.BytesToRead;
-            byte[] buffer = new byte[bytesToRead];
-            serialPort.Read(buffer, 0, bytesToRead);
+                int bytesToRead = serialPort.BytesToRead;
+                byte[] buffer = new byte[bytesToRead];
+                serialPort.Read(buffer, 0, bytesToRead);
 
-            Interlocked.Decrement(ref readLock);
-            
-            RawDataReceived.Rise(this, new RawDataReceivedEventArgs(buffer));
+                Interlocked.Decrement(ref readLock);
 
-            if (!IsRawModeOnly)
-                OnIncomingData(Encoding.ASCII.GetString(buffer));
+                RawDataReceived.Rise(this, new RawDataReceivedEventArgs(buffer));
+
+                if (!IsRawModeOnly)
+                    OnIncomingData(Encoding.ASCII.GetString(buffer));
+            }
         }
 
         private void serialPort_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
         {
-            PortError.Rise(this, e);
+            if (!pendingClose)
+                PortError.Rise(this, e);
         }
 
         #endregion

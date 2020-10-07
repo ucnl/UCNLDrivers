@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO.Ports;
+using System.Threading;
 
 namespace UCNLDrivers
 {
@@ -53,6 +54,7 @@ namespace UCNLDrivers
         #region Properties
 
         Dictionary<string, SerialPort> ports;
+        Dictionary<string, bool> pendingClose;
 
         SerialDataReceivedEventHandler dataReceivedHandler;
         SerialErrorReceivedEventHandler errorReceivedHandler;
@@ -64,6 +66,7 @@ namespace UCNLDrivers
         public SerialPortsPool(SerialPortSettings[] portSettings)
         {
             ports = new Dictionary<string, SerialPort>();
+            pendingClose = new Dictionary<string, bool>();
 
             dataReceivedHandler = new SerialDataReceivedEventHandler(port_DataReceived);
             errorReceivedHandler = new SerialErrorReceivedEventHandler(port_ErrorReceived);
@@ -72,8 +75,10 @@ namespace UCNLDrivers
             {
                 if (!ports.ContainsKey(item.PortName))
                 {
-                    var port = new SerialPort(item.PortName, (int)item.PortBaudRate, item.PortParity, (int)item.PortDataBits, item.PortStopBits);                    
+                    var port = new SerialPort(item.PortName, (int)item.PortBaudRate, item.PortParity, (int)item.PortDataBits, item.PortStopBits);
+                    port.ReadTimeout = 1000;
                     ports.Add(port.PortName, port);
+                    pendingClose.Add(port.PortName, false);
                 }
             }
         }
@@ -145,13 +150,18 @@ namespace UCNLDrivers
             {
                 ports[portName].DataReceived -= dataReceivedHandler;
                 ports[portName].ErrorReceived -= errorReceivedHandler;
+
+                pendingClose[portName] = true;
+                Thread.Sleep(ports[portName].ReadTimeout);
                 ports[portName].Close();
+                pendingClose[portName] = false;
             }
         }
 
         public void Write(string portName, byte[] data)
         {
-            ports[portName].Write(data, 0, data.Length);
+            if (!pendingClose[portName])
+                ports[portName].Write(data, 0, data.Length);
         }
 
         #endregion
@@ -161,15 +171,21 @@ namespace UCNLDrivers
         #region ports
 
         private void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        {            
-            byte[] data = new byte[((SerialPort)sender).BytesToRead];
-            ((SerialPort)sender).Read(data, 0, data.Length);
-            DataReceived.Rise(sender, new SerialPortDataEventArgs(((SerialPort)sender).PortName, data));            
+        {
+            if (!pendingClose[((SerialPort)sender).PortName])
+            {
+                byte[] data = new byte[((SerialPort)sender).BytesToRead];
+                ((SerialPort)sender).Read(data, 0, data.Length);
+                DataReceived.Rise(sender, new SerialPortDataEventArgs(((SerialPort)sender).PortName, data));
+            }
         }
 
         private void port_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
         {
-            ErrorReceived.Rise(sender, new SerialPortErrorEventArgs(((SerialPort)sender).PortName, e.EventType));
+            if (!pendingClose[((SerialPort)sender).PortName])
+            {
+                ErrorReceived.Rise(sender, new SerialPortErrorEventArgs(((SerialPort)sender).PortName, e.EventType));
+            }
         }
 
         #endregion

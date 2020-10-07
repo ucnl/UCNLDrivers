@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO.Ports;
+using System.Threading;
 namespace UCNLDrivers
 {
     #region Custom enums
@@ -47,6 +48,7 @@ namespace UCNLDrivers
         #region Properties
 
         SerialPort port;
+        bool pendingClose = false;
 
         byte inByte, crc;
         int dcIdx, dataSize;
@@ -175,6 +177,7 @@ namespace UCNLDrivers
             port = new SerialPort(portSettings.PortName, (int)portSettings.PortBaudRate, portSettings.PortParity, (int)portSettings.PortDataBits, portSettings.PortStopBits);
             port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
             port.ErrorReceived += new SerialErrorReceivedEventHandler(port_ErrorReceived);
+            port.ReadTimeout = 1000;
         }
 
 
@@ -189,76 +192,82 @@ namespace UCNLDrivers
 
         public void Close()
         {
+            pendingClose = true;
+            Thread.Sleep(port.ReadTimeout);
             port.Close();
+            pendingClose = false;
         }
 
         public void Send(USPPorts targetID, byte[] data)
         {
-            if (targetID != USPPorts.invalid)
+            if (!pendingClose)
             {
-
-                for (int i = 0; i < data.Length; i++)
+                if (targetID != USPPorts.invalid)
                 {
-                    C_CH_RX_RING[(int)targetID][CM_RX_WPos[(int)targetID]] = data[i];
-                    CM_RX_WPos[(int)targetID] = (CM_RX_WPos[(int)targetID] + 1) % CM_CH_RX_BUFFER_SIZE;
-                    CM_RX_Cnt[(int)targetID]++;
-                    CM_RX_Ticks[(int)targetID] = DateTime.Now.Second * 1000 + DateTime.Now.Millisecond;
 
-
-                    #region Combiner
-
-                    for (dcIdx = CH3IDX; dcIdx <= CH8IDX; dcIdx++)
+                    for (int i = 0; i < data.Length; i++)
                     {
-                        if ((CM_RX_Cnt[dcIdx] == PACKET_SIZE) ||
-                            ((CM_RX_Cnt[dcIdx] > 0) && (t_ticks >= CM_RX_Ticks[dcIdx] + RX_DATA_OBSOLETE_MS)))
+                        C_CH_RX_RING[(int)targetID][CM_RX_WPos[(int)targetID]] = data[i];
+                        CM_RX_WPos[(int)targetID] = (CM_RX_WPos[(int)targetID] + 1) % CM_CH_RX_BUFFER_SIZE;
+                        CM_RX_Cnt[(int)targetID]++;
+                        CM_RX_Ticks[(int)targetID] = DateTime.Now.Second * 1000 + DateTime.Now.Millisecond;
+
+
+                        #region Combiner
+
+                        for (dcIdx = CH3IDX; dcIdx <= CH8IDX; dcIdx++)
                         {
-                            crc = 0xFF;
-                            TR_TX_RING[TR_TX_WPos] = TR_HEADER_SIGN;
-                            TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
-                            TR_TX_Cnt++;
-                            crc = CRC8Table[crc ^ TR_HEADER_SIGN];
-
-                            TR_TX_RING[TR_TX_WPos] = TR_HEADER_SIGN;
-                            TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
-                            TR_TX_Cnt++;
-                            crc = CRC8Table[crc ^ TR_HEADER_SIGN];
-
-                            TR_TX_RING[TR_TX_WPos] = Convert.ToByte(dcIdx);
-                            TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
-                            TR_TX_Cnt++;
-                            crc = CRC8Table[crc ^ dcIdx];
-
-                            dataSize = CM_RX_Cnt[dcIdx] - 1;
-
-                            TR_TX_RING[TR_TX_WPos] = Convert.ToByte(dataSize);
-                            TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
-                            TR_TX_Cnt++;
-                            crc = CRC8Table[crc ^ dataSize];
-
-                            for (i = 0; i <= dataSize; i++)
+                            if ((CM_RX_Cnt[dcIdx] == PACKET_SIZE) ||
+                                ((CM_RX_Cnt[dcIdx] > 0) && (t_ticks >= CM_RX_Ticks[dcIdx] + RX_DATA_OBSOLETE_MS)))
                             {
-                                inByte = C_CH_RX_RING[dcIdx][CM_RX_RPos[dcIdx]];
-                                CM_RX_RPos[dcIdx] = (CM_RX_RPos[dcIdx] + 1) % CM_CH_RX_BUFFER_SIZE;
-                                CM_RX_Cnt[dcIdx]--;
-
-                                TR_TX_RING[TR_TX_WPos] = inByte;
+                                crc = 0xFF;
+                                TR_TX_RING[TR_TX_WPos] = TR_HEADER_SIGN;
                                 TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
                                 TR_TX_Cnt++;
-                                crc = CRC8Table[crc ^ inByte];
+                                crc = CRC8Table[crc ^ TR_HEADER_SIGN];
+
+                                TR_TX_RING[TR_TX_WPos] = TR_HEADER_SIGN;
+                                TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
+                                TR_TX_Cnt++;
+                                crc = CRC8Table[crc ^ TR_HEADER_SIGN];
+
+                                TR_TX_RING[TR_TX_WPos] = Convert.ToByte(dcIdx);
+                                TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
+                                TR_TX_Cnt++;
+                                crc = CRC8Table[crc ^ dcIdx];
+
+                                dataSize = CM_RX_Cnt[dcIdx] - 1;
+
+                                TR_TX_RING[TR_TX_WPos] = Convert.ToByte(dataSize);
+                                TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
+                                TR_TX_Cnt++;
+                                crc = CRC8Table[crc ^ dataSize];
+
+                                for (i = 0; i <= dataSize; i++)
+                                {
+                                    inByte = C_CH_RX_RING[dcIdx][CM_RX_RPos[dcIdx]];
+                                    CM_RX_RPos[dcIdx] = (CM_RX_RPos[dcIdx] + 1) % CM_CH_RX_BUFFER_SIZE;
+                                    CM_RX_Cnt[dcIdx]--;
+
+                                    TR_TX_RING[TR_TX_WPos] = inByte;
+                                    TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
+                                    TR_TX_Cnt++;
+                                    crc = CRC8Table[crc ^ inByte];
+                                }
+
+                                TR_TX_RING[TR_TX_WPos] = crc;
+                                TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
+                                TR_TX_Cnt++;
                             }
-
-                            TR_TX_RING[TR_TX_WPos] = crc;
-                            TR_TX_WPos = (TR_TX_WPos + 1) % TR_CH_TX_BUFFER_SIZE;
-                            TR_TX_Cnt++;
                         }
-                    }
 
-                    #endregion
+                        #endregion
+                    }
                 }
-            }
-            else
-            {
-                throw new ArgumentException("targetID");
+                else
+                {
+                    throw new ArgumentException("targetID");
+                }
             }
         }
 
@@ -271,89 +280,93 @@ namespace UCNLDrivers
 
         private void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            byte[] data = new byte[port.BytesToRead];
-            port.Read(data, 0, data.Length);
-
-            #region Parser
-
-            for (int i = 0; i < data.Length; i++)
+            if (!pendingClose)
             {
-                inByte = data[i];
+                byte[] data = new byte[port.BytesToRead];
+                port.Read(data, 0, data.Length);
 
-                if (tr_isPacketStarted)
+                #region Parser
+
+                for (int i = 0; i < data.Length; i++)
                 {
-                    if (tr_packetIdx == TR_CH_ID_OFFSET)
+                    inByte = data[i];
+
+                    if (tr_isPacketStarted)
                     {
-                        tr_ChId = inByte;
-                        tr_isPacketStarted = IS_VALID_CH_ID(tr_ChId);
-                    }
-                    else if (tr_packetIdx == TR_DATA_SIZE_OFFSET)
-                    {
-                        tr_DataSize = inByte;
-                        tr_isPacketStarted = IS_VALID_DATA_SIZE(tr_DataSize);
-                    }
-                    else if (tr_packetIdx < tr_DataSize + TR_OVERHEAD)
-                    {
-                        C_CH_TX_RING[tr_ChId][CM_TX_WPos[tr_ChId]] = inByte;
-                        CM_TX_WPos[tr_ChId] = (CM_TX_WPos[tr_ChId] + 1) % CM_CH_TX_BUFFER_SIZE;
-                        CM_TX_Cnt[tr_ChId]++;
+                        if (tr_packetIdx == TR_CH_ID_OFFSET)
+                        {
+                            tr_ChId = inByte;
+                            tr_isPacketStarted = IS_VALID_CH_ID(tr_ChId);
+                        }
+                        else if (tr_packetIdx == TR_DATA_SIZE_OFFSET)
+                        {
+                            tr_DataSize = inByte;
+                            tr_isPacketStarted = IS_VALID_DATA_SIZE(tr_DataSize);
+                        }
+                        else if (tr_packetIdx < tr_DataSize + TR_OVERHEAD)
+                        {
+                            C_CH_TX_RING[tr_ChId][CM_TX_WPos[tr_ChId]] = inByte;
+                            CM_TX_WPos[tr_ChId] = (CM_TX_WPos[tr_ChId] + 1) % CM_CH_TX_BUFFER_SIZE;
+                            CM_TX_Cnt[tr_ChId]++;
+                        }
+                        else
+                        {
+                            tr_isPacketStarted = false;
+                        }
+
+                        tr_packetIdx++;
                     }
                     else
                     {
-                        tr_isPacketStarted = false;
-                    }
-
-                    tr_packetIdx++;
-                }
-                else
-                {
-                    if (inByte == TR_HEADER_SIGN)
-                    {
-                        if (++tr_hdrSignCnt == 2)
+                        if (inByte == TR_HEADER_SIGN)
                         {
-                            tr_isPacketStarted = true;
-                            tr_packetIdx = 2;
-                            tr_DataSize = -1;
+                            if (++tr_hdrSignCnt == 2)
+                            {
+                                tr_isPacketStarted = true;
+                                tr_packetIdx = 2;
+                                tr_DataSize = -1;
+                                tr_hdrSignCnt = 0;
+                            }
+                        }
+                        else
+                        {
                             tr_hdrSignCnt = 0;
                         }
                     }
-                    else
-                    {
-                        tr_hdrSignCnt = 0;
-                    }
                 }
-            }
 
-            #endregion
+                #endregion
 
-            #region splitter
+                #region splitter
 
-            for (int i = CH3IDX; i <= CH8IDX; i++)
-            {
-                if (CM_TX_Cnt[i] > 0)
+                for (int i = CH3IDX; i <= CH8IDX; i++)
                 {
-                    byte[] dataBlock = new byte[CM_TX_Cnt[i]];
-                    int dIdx = 0;
-                    while (CM_TX_Cnt[i] > 0)
+                    if (CM_TX_Cnt[i] > 0)
                     {
-                        dataBlock[dIdx] = C_CH_TX_RING[i][CM_TX_RPos[i]];
-                        CM_TX_RPos[i] = (CM_TX_RPos[i] + 1) % CM_CH_TX_BUFFER_SIZE;
-                        CM_TX_Cnt[i]--;
-                        dIdx++;
+                        byte[] dataBlock = new byte[CM_TX_Cnt[i]];
+                        int dIdx = 0;
+                        while (CM_TX_Cnt[i] > 0)
+                        {
+                            dataBlock[dIdx] = C_CH_TX_RING[i][CM_TX_RPos[i]];
+                            CM_TX_RPos[i] = (CM_TX_RPos[i] + 1) % CM_CH_TX_BUFFER_SIZE;
+                            CM_TX_Cnt[i]--;
+                            dIdx++;
+                        }
+
+                        DataReceived.Rise(this, new USPPortDataEventArgs((USPPorts)i, dataBlock));
                     }
-
-                    DataReceived.Rise(this, new USPPortDataEventArgs((USPPorts)i, dataBlock));
                 }
+
+
+
+                #endregion
             }
-            
-
-
-            #endregion
         }
 
         private void port_ErrorReceived(object sender, SerialErrorReceivedEventArgs e)
         {
-            ErrorReceived.Rise(this, e);
+            if (!pendingClose)
+                ErrorReceived.Rise(this, e);
         }
 
         #endregion
