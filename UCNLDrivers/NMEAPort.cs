@@ -77,8 +77,8 @@ namespace UCNLDrivers
                         if (data[i] == nmeaEndByte)
                         {
                             isSntStarted = false;
-                            NewNMEAMessage.Rise(this,
-                                new NewNMEAMessageEventArgs(Encoding.ASCII.GetString(buffer, 0, bIdx)));
+                            string snt = Encoding.ASCII.GetString(buffer, 0, bIdx);
+                            NewNMEAMessage.BeginRise(this, new NewNMEAMessageEventArgs(snt), null, null);
                         }
                         else
                         {
@@ -120,7 +120,7 @@ namespace UCNLDrivers
                 if (NewNMEAMessage != null)
                 {
                     for (int i = 0; i < lines.Length; i++)
-                        NewNMEAMessage.Rise(this, new NewNMEAMessageEventArgs(string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter)));
+                        NewNMEAMessage.BeginRise(this, new NewNMEAMessageEventArgs(string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter)), null, null);
                 }
             }
 

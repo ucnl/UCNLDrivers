@@ -107,6 +107,8 @@ namespace UCNLDrivers
             serialPort.WriteTimeout = 1000;
             serialPort.ReadTimeout = 1000;
 
+            serialPort.ReceivedBytesThreshold = 1;            
+
             serialErrorReceivedHandler = new SerialErrorReceivedEventHandler(serialPort_ErrorReceived);
             serialDataReceivedHandler = new SerialDataReceivedEventHandler(serialPort_DataReceived);
 
@@ -159,9 +161,20 @@ namespace UCNLDrivers
             try
             {
                 pendingClose = true;
-                Thread.Sleep(serialPort.ReadTimeout);
+                serialPort.DiscardInBuffer();
+                serialPort.DiscardOutBuffer();                
                 OnConnectionClosing();
-                serialPort.Close();
+
+                new Thread(() =>
+                {
+                    try
+                    {
+                        serialPort.Close();
+                    }
+                    catch { }
+                }).Start();
+
+                Thread.Sleep(1000); 
                 pendingClose = false;
             }
             catch (Exception ex)
@@ -239,7 +252,8 @@ namespace UCNLDrivers
                 RawDataReceived.Rise(this, new RawDataReceivedEventArgs(buffer));
 
                 if (!IsRawModeOnly)
-                    OnIncomingData(Encoding.ASCII.GetString(buffer));
+                    //OnIncomingData(buffer);
+                    OnIncomingDataEx(Encoding.ASCII.GetString(buffer));
             }
         }
 

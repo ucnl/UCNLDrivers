@@ -126,22 +126,24 @@ namespace UCNLDrivers
 
         public void Close()
         {
-            foreach (var port in ports)
-            {
-                if (port.Value.IsOpen)
+            new Thread(() =>
+            {                
+                foreach (var port in ports)
                 {
-                    try
+                    if (port.Value.IsOpen)
                     {
-                        port.Value.DataReceived -= dataReceivedHandler;
-                        port.Value.ErrorReceived -= errorReceivedHandler;
-                        port.Value.Close();
-                    }
-                    catch (Exception ex)
-                    {
-                        LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
+                        try
+                        {
+                            port.Value.DataReceived -= dataReceivedHandler;
+                            port.Value.ErrorReceived -= errorReceivedHandler;
+                            port.Value.Close();
+                        }
+                        catch { }
                     }
                 }
-            }
+            }).Start();
+
+            Thread.Sleep(1000);            
         }
 
         public void Close(string portName)
@@ -152,8 +154,17 @@ namespace UCNLDrivers
                 ports[portName].ErrorReceived -= errorReceivedHandler;
 
                 pendingClose[portName] = true;
-                Thread.Sleep(ports[portName].ReadTimeout);
-                ports[portName].Close();
+                
+                new Thread(() =>
+                    {
+                        try
+                        {
+                            ports[portName].Close();
+                        }
+                        catch { }
+                    }).Start();
+
+                Thread.Sleep(1000);                
                 pendingClose[portName] = false;
             }
         }
