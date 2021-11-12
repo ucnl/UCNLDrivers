@@ -449,7 +449,7 @@ namespace UCNLDrivers
         #region Methods
 
         #region Public
-
+        
         public void ProcessIncoming(int sourceID, byte[] data)
         {
             if (!buffer.ContainsKey(sourceID))
@@ -552,15 +552,14 @@ namespace UCNLDrivers
                 double DGPSRecordAge = doubleNullChecker(parameters[12]);
                 int datumID = intNullChecker(parameters[13]);
 
-                bool isValid = (!double.IsNaN(latitude)) &&
-                               (!double.IsNaN(longitude)) &&
+                bool isValid = (!double.IsNaN(latitude)) && latitude.IsValidLatDeg() &&
+                               (!double.IsNaN(longitude)) && longitude.IsValidLonDeg() &&
                                (!double.IsNaN(HDOP));
-
 
                 if (isValid)
                 {                    
-                    if (parameters[2].ToString() == "South") latitude = -latitude;
-                    if (parameters[4].ToString() == "West") longitude = -longitude;
+                    if (parameters[2].ToString() == "S") latitude = -latitude;
+                    if (parameters[4].ToString() == "W") longitude = -longitude;
                 }
 
                 GGASentenceReceived.Rise(this, new GGAMessageEventArgs(sourceID, talkerID, tStamp, 
@@ -610,13 +609,13 @@ namespace UCNLDrivers
                 double longitude = doubleNullChecker(parameters[2]);
                 DateTime tStamp = (DateTime)parameters[4];
                 bool isValid = (parameters[5].ToString() == "Valid") &&
-                               (!double.IsNaN(latitude)) &&
-                               (!double.IsNaN(longitude));
+                               (!double.IsNaN(latitude)) && latitude.IsValidLatDeg() &&
+                               (!double.IsNaN(longitude)) && longitude.IsValidLonDeg();
 
                 if (isValid)
                 {                  
-                    if (parameters[1].ToString() == "South") latitude = -latitude;
-                    if (parameters[3].ToString() == "West") longitude = -longitude;
+                    if (parameters[1].ToString() == "S") latitude = -latitude;
+                    if (parameters[3].ToString() == "W") longitude = -longitude;
                 }
 
                 GLLSentenceReceived.Rise(this, new GLLMessageEventArgs(sourceID, talkerID, latitude, longitude, tStamp, isValid));
@@ -637,8 +636,8 @@ namespace UCNLDrivers
                 var magneticVariation = doubleNullChecker(parameters[9]);
 
                 bool isValid = (parameters[1].ToString() != "Invalid") &&
-                               (!double.IsNaN(latitude)) &&
-                               (!double.IsNaN(longitude)) &&
+                               (!double.IsNaN(latitude)) && latitude.IsValidLatDeg() &&
+                               (!double.IsNaN(longitude)) && longitude.IsValidLonDeg() &&
                                (!double.IsNaN(groundSpeed)) &&
                                //(!double.IsNaN(courseOverGround)) &&
                                (parameters[11].ToString() != "N");
@@ -651,8 +650,8 @@ namespace UCNLDrivers
                     dateTime = dateTime.AddMilliseconds(tStamp.Millisecond);
                     groundSpeed = 3.6 * NMEAParser.Bend2MpS(groundSpeed);
 
-                    if (parameters[3].ToString() == "South") latitude = -latitude;
-                    if (parameters[5].ToString() == "West") longitude = -longitude;
+                    if (parameters[3].ToString() == "S") latitude = -latitude;
+                    if (parameters[5].ToString() == "W") longitude = -longitude;
                 }
 
                 RMCSentenceReceived.Rise(this, new RMCMessageEventArgs(sourceID, talkerID, dateTime, latitude, longitude, groundSpeed, courseOverGround, magneticVariation, isValid));
