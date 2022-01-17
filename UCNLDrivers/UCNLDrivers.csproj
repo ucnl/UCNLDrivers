@@ -34,8 +34,7 @@
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Xml" />
-    <Reference Include="UCNLNMEA, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
+    <Reference Include="UCNLNMEA">
       <HintPath>..\..\UCNLNMEA\UCNLNMEA\bin\Release\UCNLNMEA.dll</HintPath>
     </Reference>
   </ItemGroup>
