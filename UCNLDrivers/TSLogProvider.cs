@@ -84,12 +84,22 @@ namespace UCNLDrivers
 
         #endregion
 
-        #region Methods
+        #region Methods        
 
+        public static string ShortDateString(DateTime dt)
+        {
+            return string.Format("{0:00}-{1:00}-{2:0000}", dt.Day, dt.Month, dt.Year);
+        }
+
+        public static string LongTimeString(DateTime dt)
+        {
+            return string.Format("{0:00}:{1:00}:{2:00}.{3:000}", dt.Hour, dt.Minute, dt.Second, dt.Millisecond);
+        }
+        
         public void WriteStart()
         {
             DateTime now = DateTime.Now;
-            Write(string.Format("\r\n<Log started at {0}, {1}>", now.ToShortDateString(), now.ToLongTimeString()), false);
+            Write(string.Format("\r\n<Log started at {0}, {1}>", ShortDateString(now), LongTimeString(now)), false);
         }
 
         public string Write(Exception ex)
@@ -118,9 +128,9 @@ namespace UCNLDrivers
             if (isTimeStamp)
             {
                 if (now.Subtract(prevLogLineTimeStamp).Days > 1)
-                    sb.AppendFormat("Log continues at {0} ", now.ToShortDateString());
+                    sb.AppendFormat("Log continues at {0}", ShortDateString(now));
 
-                sb.AppendFormat("{0}.{1}: ", now.ToLongTimeString(), now.Millisecond.ToString("000"));
+                sb.AppendFormat("{0}: ", LongTimeString(now));
             }
 
             sb.Append(logString);
@@ -141,7 +151,7 @@ namespace UCNLDrivers
         public string FinishLog()
         {
             DateTime now = DateTime.Now;
-            var result = Write(string.Format("<Log finished at {0}, {1}>", now.ToShortDateString(), now.ToLongTimeString()), false);
+            var result = Write(string.Format("<Log finished at {0}, {1}>", ShortDateString(now), LongTimeString(now)), false);
             Flush();
             
             return result;
