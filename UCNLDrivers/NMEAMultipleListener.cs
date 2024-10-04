@@ -537,7 +537,7 @@ namespace UCNLDrivers
         {
             if (GGASentenceReceived != null)
             {
-                DateTime tStamp = (DateTime)parameters[0];
+                DateTime tStamp = parameters[0] == null ? DateTime.MinValue : (DateTime)parameters[0];
 
                 double latitude = doubleNullChecker(parameters[1]);
                 double longitude = doubleNullChecker(parameters[3]);

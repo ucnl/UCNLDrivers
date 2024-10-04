@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace UCNLDrivers
 {
@@ -29,7 +30,5 @@ namespace UCNLDrivers
             if (handler != null)
                 handler.BeginInvoke(sender, e, callback, _object);
         }
-
-
     }
 }

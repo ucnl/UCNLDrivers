@@ -38,12 +38,14 @@ namespace UCNLDrivers
             get { return timer.IsRunning; }
         }
 
+        public bool Emulation = false;
+        
         protected bool detected
         {
             get { return _detected; }
             set
             {
-                if (_detected != value)
+                if ((_detected != value) && !Emulation)
                 {
                     _detected = value;
                     DetectedChanged.Rise(this, new EventArgs());
@@ -70,6 +72,7 @@ namespace UCNLDrivers
 
         EventHandler<NewNMEAMessageEventArgs> port_NewNMEAMessageHandler;
         EventHandler<SerialErrorReceivedEventArgs> port_PortErrorHandler;
+        EventHandler<RawDataReceivedEventArgs> port_RawDataReceivedHandler;
 
         readonly int timer_period_ms = 200;
         int timer_cnt = 0;
@@ -95,6 +98,8 @@ namespace UCNLDrivers
         }
         public bool IsTryAlways { get; set; }
 
+        public string ProposedPortName { get; set; }
+
         #endregion
 
         #region Constructor
@@ -107,27 +112,31 @@ namespace UCNLDrivers
 
             port_NewNMEAMessageHandler = new EventHandler<NewNMEAMessageEventArgs>(port_NewNMEAMessage);
             port_PortErrorHandler = new EventHandler<SerialErrorReceivedEventArgs>(port_PortError);
+            port_RawDataReceivedHandler = new EventHandler<RawDataReceivedEventArgs>(port_RawDataReceived);
 
             timer = new PrecisionTimer();
             timer.Mode = Mode.Periodic;
             timer.Period = timer_period_ms;
             timer.Tick += (o, e) =>
             {
-                if (timer_cnt++ > timer_cnt_max)
+                if (isActive)
                 {
-                    timer_cnt = 0;
-
-                    if (!_detected)
-                        TryNextPort();
-                    else
+                    if (timer_cnt++ > timer_cnt_max)
                     {
-                        PortTimeout.Rise(this, new EventArgs());
-                        detected = false;
+                        timer_cnt = 0;
 
-                        if (IsTryAlways)
-                        {
-                            checkedPortNames.Clear();
+                        if (!_detected)
                             TryNextPort();
+                        else
+                        {
+                            PortTimeout.Rise(this, new EventArgs());
+                            detected = false;
+
+                            if (IsTryAlways)
+                            {
+                                checkedPortNames.Clear();
+                                TryNextPort();
+                            }
                         }
                     }
                 }
@@ -147,7 +156,12 @@ namespace UCNLDrivers
 
         protected void ResetTimer()
         {
+            while (Interlocked.CompareExchange(ref timerlock, 1, 0) != 0)
+                Thread.SpinWait(1);
+
             timer_cnt = 0;
+
+            Interlocked.Decrement(ref timerlock);
         }
 
         protected void StopTimer()
@@ -225,6 +239,7 @@ namespace UCNLDrivers
                 {
                     port.NewNMEAMessage -= port_NewNMEAMessageHandler;
                     port.PortError -= port_PortErrorHandler;
+                    port.RawDataReceived -= port_RawDataReceivedHandler;
 
                     if (port.IsOpen)
                     {
@@ -250,6 +265,9 @@ namespace UCNLDrivers
             if (!string.IsNullOrEmpty(detectedPortName) &&
                 !checkedPortNames.Contains(detectedPortName))
                 pName = detectedPortName;
+            else if (!string.IsNullOrEmpty(ProposedPortName) &&
+                     !checkedPortNames.Contains(ProposedPortName))
+                pName = ProposedPortName;
             else
                 pName = GetNextPortName(checkedPortNames);
 
@@ -280,10 +298,11 @@ namespace UCNLDrivers
                 catch (Exception ex)
                 {
                     LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
-                    StartTimer(0); // To avoid recursion - timer expiration will cause a next TryNextPort() call
+                    if (isActive)
+                        StartTimer(0); // To avoid recursion - timer expiration will cause a next TryNextPort() call
                 }
             }
-            else
+            else if (isActive)
             {
                 if (IsTryAlways)
                 {
@@ -313,11 +332,15 @@ namespace UCNLDrivers
 
         public void EmulateInput(string message)
         {
+            if (!Emulation)
+                Emulation = true;
+
             port_NewNMEAMessage(this, new NewNMEAMessageEventArgs(message));
         }
 
         public void Start()
         {
+            Emulation = false;
             StopTimer();
             checkedPortNames.Clear();
 
@@ -336,9 +359,12 @@ namespace UCNLDrivers
             StopTimer();
             SafelyClosePort(false);
 
-            detected = false;
-            IsActive = false;
+            isActive = false;
+            _detected = false;
 
+            DetectedChanged.Rise(this, EventArgs.Empty);
+            IsActiveChanged.Rise(this, EventArgs.Empty);
+            
             OnClosed();
             LogEventHandler.Rise(this, new LogEventArgs(LogLineType.INFO, string.Format("{0} Stopped", PortDescription)));
         }
@@ -389,6 +415,11 @@ namespace UCNLDrivers
             LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, string.Format("{0} ({1}) >> {2}", PortName, PortDescription, e.EventType.ToString())));
         }
 
+        private void port_RawDataReceived(object sender, RawDataReceivedEventArgs e)
+        {
+            RawDataReceived.Rise(this, e);
+        }
+
         #endregion
 
         #region IDisposable
@@ -429,6 +460,8 @@ namespace UCNLDrivers
         public EventHandler PortTimeout;
 
         public EventHandler PortDetectionFailed;
+
+        public EventHandler<RawDataReceivedEventArgs> RawDataReceived;
 
         #endregion
     }

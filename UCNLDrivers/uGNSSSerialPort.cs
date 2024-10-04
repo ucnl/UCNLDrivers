@@ -7,6 +7,8 @@ namespace UCNLDrivers
     {
         #region Properties
 
+        public bool MagneticOnly { get; set; }
+
         public double Heading { get; private set; }
         public double Latitude { get; private set; }
         public double Longitude { get; private set; }
@@ -85,17 +87,46 @@ namespace UCNLDrivers
                     if (!detected)
                         detected = true;
 
-                    double hdn = O2D(nSentence.parameters[0]);
-                    if (!double.IsNaN(hdn))
+                    if (!MagneticOnly)
                     {
-                        Heading = hdn;
-                        HeadingUpdated.Rise(this, new EventArgs());
+                        double hdn = O2D(nSentence.parameters[0]);
+                        if (!double.IsNaN(hdn))
+                        {
+                            Heading = hdn;
+                            HeadingUpdated.Rise(this, new EventArgs());
+                        }
+                    }
+                }
+                else if (nSentence.SentenceID == SentenceIdentifiers.HDG)
+                {
+                    if (MagneticOnly)
+                    {
+                        double hdn = O2D(nSentence.parameters[0]);
+                        if (!double.IsNaN(hdn))
+                        {
+                            Heading = hdn;
+                            HeadingUpdated.Rise(this, new EventArgs());
+                        }
+                    }
+                }
+                else if (nSentence.SentenceID == SentenceIdentifiers.HDM)
+                {
+                    if (MagneticOnly)
+                    {
+                        double hdn = O2D(nSentence.parameters[0]);
+                        if (!double.IsNaN(hdn))
+                        {
+                            Heading = hdn;
+                            HeadingUpdated.Rise(this, new EventArgs());
+                        }
                     }
                 }
                 else if (nSentence.SentenceID == SentenceIdentifiers.RMC)
                 {
                     if (!detected)
                         detected = true;
+
+                    // $GBRMC,072202.00,A,4332.85825286,N,03941.01553346,E,,,240524,7.6,E,D,C*48
 
                     DateTime tStamp = nSentence.parameters[0] == null ? DateTime.MinValue : (DateTime)nSentence.parameters[0];
 
@@ -108,7 +139,6 @@ namespace UCNLDrivers
                     bool isValid = (nSentence.parameters[1].ToString() != "Invalid") &&
                                    (!double.IsNaN(latitude)) && latitude.IsValidLatDeg() &&
                                    (!double.IsNaN(longitude)) && longitude.IsValidLonDeg() &&
-                                   (!double.IsNaN(groundSpeed)) &&
                                    (nSentence.parameters[11].ToString() != "N");
 
                     if (isValid)
@@ -117,15 +147,23 @@ namespace UCNLDrivers
                         dateTime = dateTime.AddMinutes(tStamp.Minute);
                         dateTime = dateTime.AddSeconds(tStamp.Second);
                         dateTime = dateTime.AddMilliseconds(tStamp.Millisecond);
-                        groundSpeed = 3.6 * NMEAParser.Bend2MpS(groundSpeed);
+                        
 
                         if (nSentence.parameters[3].ToString() == "S") latitude = -latitude;
                         if (nSentence.parameters[5].ToString() == "W") longitude = -longitude;
 
                         Latitude = latitude;
                         Longitude = longitude;
-                        GroundSpeed = groundSpeed;
-                        CourseOverGround = courseOverGround;
+
+                        if (!double.IsNaN(groundSpeed))
+                        {
+                            groundSpeed = 3.6 * NMEAParser.Bend2MpS(groundSpeed);
+                            GroundSpeed = groundSpeed;
+                        }
+
+                        if (!double.IsNaN(courseOverGround))
+                            CourseOverGround = courseOverGround;
+
                         GNSSTime = dateTime;
 
                         LocationUpdated.Rise(this, new EventArgs());

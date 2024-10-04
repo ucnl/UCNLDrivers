@@ -40,7 +40,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AstroAndTimeUtils.cs" />
     <Compile Include="Helper.cs" />
+    <Compile Include="LogPlayer.cs" />
+    <Compile Include="MDates.cs" />
     <Compile Include="NMEAMultipleListener.cs" />
     <Compile Include="NMEAPort.cs" />
     <Compile Include="NMEASerialPort.cs" />
@@ -54,7 +57,10 @@
     <Compile Include="StrUtils.cs" />
     <Compile Include="TSLogProvider.cs" />
     <Compile Include="TSQueue.cs" />
+    <Compile Include="UDPListener.cs" />
+    <Compile Include="UDPTranslator.cs" />
     <Compile Include="uGNSSSerialPort.cs" />
+    <Compile Include="UnicodeDays.cs" />
     <Compile Include="uSerialPort.cs" />
     <Compile Include="USplitterDriver.cs" />
     <Compile Include="Utilities.cs" />
