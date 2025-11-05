@@ -93,7 +93,7 @@ namespace UCNLDrivers
         protected void OnIncomingDataEx(string data)
         {
             var dataBytes = Encoding.ASCII.GetBytes(data);
-            OnIncomingData(dataBytes);
+            OnIncomingData(dataBytes);            
         }
 
 

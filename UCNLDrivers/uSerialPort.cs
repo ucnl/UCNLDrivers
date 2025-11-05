@@ -286,6 +286,7 @@ namespace UCNLDrivers
                     port.IsRawModeOnly = false;
                     port.PortError += port_PortErrorHandler;
                     port.NewNMEAMessage += port_NewNMEAMessageHandler;
+                    port.RawDataReceived += port_RawDataReceivedHandler;
 
                     port.Open();
 
@@ -335,6 +336,7 @@ namespace UCNLDrivers
             if (!Emulation)
                 Emulation = true;
 
+            RawDataReceived.Rise(this, new RawDataReceivedEventArgs(Encoding.ASCII.GetBytes(message)));
             port_NewNMEAMessage(this, new NewNMEAMessageEventArgs(message));
         }
 

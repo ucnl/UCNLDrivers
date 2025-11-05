@@ -126,7 +126,8 @@ namespace UCNLDrivers
                     if (!detected)
                         detected = true;
 
-                    // $GBRMC,072202.00,A,4332.85825286,N,03941.01553346,E,,,240524,7.6,E,D,C*48
+                    // $GBRMC,072202.00,A,4332.85825286,N,03941.01553346,E,    ,      ,240524,7.6,E,D,C*48
+                    // $GPRMC,112931.50,A,4405.850551,  N,03900.187941,  E,0.27,112.74,180425,   ,*30
 
                     DateTime tStamp = nSentence.parameters[0] == null ? DateTime.MinValue : (DateTime)nSentence.parameters[0];
 

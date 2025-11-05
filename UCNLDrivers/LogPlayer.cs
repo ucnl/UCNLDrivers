@@ -8,10 +8,18 @@ namespace UCNLDrivers
 {
     public class StringEventArgs : EventArgs
     {
+        public TimeSpan TS { get; private set; }
         public string Line { get; private set; }
+
+        public StringEventArgs(string line, TimeSpan ts)
+        {
+            TS = ts;
+            Line = line;
+        }
 
         public StringEventArgs(string line)
         {
+            TS = TimeSpan.Zero;
             Line = line;
         }
     }
@@ -40,6 +48,18 @@ namespace UCNLDrivers
                 IsRunning = true;
             }
         }
+
+        public void PlaybackInstant(string fileName)
+        {
+            if (!IsRunning)
+            {
+                LogFileName = fileName;
+                _ = ThreadPool.QueueUserWorkItem(PlaybackInstantThread, fileName);
+                IsRunning = true;
+            }
+        }
+
+
         public void RequestToStop()
         {
             if (IsRunning)
@@ -110,7 +130,7 @@ namespace UCNLDrivers
             }
 
             return result;
-        }
+        }        
 
         private bool ParseTimeEx(string s, out TimeSpan ts)
         {
@@ -170,6 +190,41 @@ namespace UCNLDrivers
 
                                 prevLineTS = ts;
                                 NewLogLineHandler.Rise(this, new StringEventArgs(rs));
+                            }
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
+            }
+
+            IsRunning = false;
+            LogPlaybackFinishedHandler.Rise(this, new EventArgs());
+        }
+
+        private void PlaybackInstantThread(object sinfo)
+        {
+            string fileName = sinfo as string;           
+
+            try
+            {
+                using (StreamReader sr = File.OpenText(fileName))
+                {
+                    string s = string.Empty;
+                    while (((s = sr.ReadLine()) != null) && IsRunning)
+                    {
+                        int idx = s.IndexOf(' ');
+                        if (idx >= 0)
+                        {
+                            string rs = s.Substring(idx + 1);
+                            string ls = s.Substring(0, idx);
+
+                            if (ParseTime(ls, out TimeSpan ts) || ParseTimeEx(ls, out ts))
+                            {                                
+                                NewLogLineHandler.Rise(this, new StringEventArgs(rs, ts));
                             }
                         }
                     }
