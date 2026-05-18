@@ -1,4 +1,4 @@
-// UCNLDrivers/uAux/AuxManager.cs
+﻿// UCNLDrivers/uAux/AuxManager.cs
 namespace UCNLDrivers.uAux
 {
     public class AuxManager
