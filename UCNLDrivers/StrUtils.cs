@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-
-namespace UCNLDrivers
+﻿namespace UCNLDrivers
 {
     public static class StrUtils
     {

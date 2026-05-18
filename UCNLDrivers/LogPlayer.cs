@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Threading;
+﻿using System.Globalization;
 
 namespace UCNLDrivers
 {
     public class StringEventArgs : EventArgs
     {
-        public TimeSpan TS { get; private set; }
-        public string Line { get; private set; }
+        public TimeSpan TS { get; }
+        public string Line { get; }
 
         public StringEventArgs(string line, TimeSpan ts)
         {
@@ -26,228 +22,133 @@ namespace UCNLDrivers
 
     public class LogPlayer
     {
-        #region Properties
+        private CancellationTokenSource? _cts;
+        private static readonly char[] _timeSplitters = { ':' };
+        private static readonly char[] _timeSplittersEx = { '-', '_' };
 
-        public bool IsRunning { get; private set; }
+        public bool IsRunning => _cts != null && !_cts.IsCancellationRequested;
+        public string LogFileName { get; private set; } = string.Empty;
 
-        public string LogFileName { get; private set; }
+        public void Playback(string fileName) => StartPlayback(fileName, realtime: true);
+        public void PlaybackInstant(string fileName) => StartPlayback(fileName, realtime: false);
 
-        readonly char[] tSplitter = new char[] { ':' };
-        readonly char[] tExSplitter = new char[] { '-', '_' };
+        public void RequestToStop() => _cts?.Cancel();
 
-        #endregion
-
-        #region Methods
-
-        public void Playback(string fileName)
+        private void StartPlayback(string fileName, bool realtime)
         {
-            if (!IsRunning)
+            if (IsRunning) return;
+
+            LogFileName = fileName;
+            _cts = new CancellationTokenSource();
+            var ct = _cts.Token;
+
+            _ = Task.Run(() =>
             {
-                LogFileName = fileName;
-                _ = ThreadPool.QueueUserWorkItem(PlaybackThread, fileName);
-                IsRunning = true;
-            }
-        }
-
-        public void PlaybackInstant(string fileName)
-        {
-            if (!IsRunning)
-            {
-                LogFileName = fileName;
-                _ = ThreadPool.QueueUserWorkItem(PlaybackInstantThread, fileName);
-                IsRunning = true;
-            }
-        }
-
-
-        public void RequestToStop()
-        {
-            if (IsRunning)
-                IsRunning = false;
-        }
-
-        public List<Tuple<double, string>> ParseLog(string fileName)
-        {
-            List<Tuple<double, string>> result = new List<Tuple<double, string>>();
-
-            TimeSpan lstartTs = TimeSpan.MinValue;
-            TimeSpan ts = TimeSpan.MinValue;
-            bool tsInitialized = false;
-
-            try
-            {
-                using (StreamReader sr = File.OpenText(fileName))
+                try
                 {
-                    string s = string.Empty;
-                    while ((s = sr.ReadLine()) != null)
-                    {
-                        int idx = s.IndexOf(' ');
-                        if (idx >= 0)
-                        {
-                            string rs = s.Substring(idx + 1);
-                            string ls = s.Substring(0, idx);
-
-                            if (ParseTime(ls, out ts) || ParseTimeEx(ls, out ts))
-                            {
-                                if (!tsInitialized)
-                                {
-                                    lstartTs = ts;
-                                    tsInitialized = true;
-                                }
-
-                                var interval = ts.Subtract(lstartTs).TotalMilliseconds / 1000.0;
-
-                                result.Add(new Tuple<double, string>(interval, rs));
-                            }
-                        }
-                    }
+                    ProcessLines(fileName, ct, realtime);
                 }
-            }
-            catch (Exception ex)
-            {
-                LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
-            }
-
-            return result;
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    LogEventHandler?.Invoke(this, new LogEventArgs(LogLineType.ERROR, ex));
+                }
+                finally
+                {
+                    LogPlaybackFinishedHandler?.Invoke(this, EventArgs.Empty);
+                }
+            }, ct);
         }
 
-
-        private bool ParseTime(string s, out TimeSpan ts)
+        private void ProcessLines(string fileName, CancellationToken ct, bool realtime)
         {
-            bool result = false;
+            TimeSpan prevTS = TimeSpan.MinValue;
+            bool firstLine = true;
+
+            foreach (var (timestamp, text) in EnumerateLogLines(fileName))
+            {
+                if (ct.IsCancellationRequested) break;
+
+                if (realtime && !firstLine)
+                {
+                    var delay = (int)(timestamp - prevTS).TotalMilliseconds;
+                    if (delay > 10)
+                        ct.WaitHandle.WaitOne(delay);
+                }
+
+                prevTS = timestamp;
+                firstLine = false;
+
+                NewLogLineHandler?.Invoke(this, new StringEventArgs(text, timestamp));
+            }
+        }
+
+        public IEnumerable<(double Seconds, string Text)> ParseLog(string fileName)
+        {
+            TimeSpan? start = null;
+
+            foreach (var (timestamp, text) in EnumerateLogLines(fileName))
+            {
+                start ??= timestamp;
+                var seconds = (timestamp - start.Value).TotalMilliseconds / 1000.0;
+                yield return (seconds, text);
+            }
+        }
+
+        private static IEnumerable<(TimeSpan Timestamp, string Text)> EnumerateLogLines(string fileName)
+        {
+            using var sr = File.OpenText(fileName);
+
+            string? line;
+            while ((line = sr.ReadLine()) != null)
+            {
+                int idx = line.IndexOf(' ');
+                if (idx < 0) continue;
+
+                var timeStr = line.Substring(0, idx);
+                var text = line.Substring(idx + 1);
+
+                if (TryParseTime(timeStr, out var ts) || TryParseTimeEx(timeStr, out ts))
+                    yield return (ts, text);
+            }
+        }
+
+        private static bool TryParseTime(string s, out TimeSpan ts)
+        {
             ts = TimeSpan.MinValue;
-            var splits = s.Split(tSplitter, StringSplitOptions.RemoveEmptyEntries);
-            if (splits.Length == 3)
-            {
-                int hr = int.Parse(splits[0]);
-                int mn = int.Parse(splits[1]);
-                double sec = double.Parse(splits[2], CultureInfo.InvariantCulture);
-                int sc = Convert.ToInt32(sec);
-                int ms = Convert.ToInt32(1000 * (sec - sc));
+            var parts = s.Split(_timeSplitters, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 3) return false;
 
-                ts = new TimeSpan(0, hr, mn, sc, ms);
-                result = true;
-            }
+            if (!int.TryParse(parts[0], out var h) ||
+                !int.TryParse(parts[1], out var m) ||
+                !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var sec))
+                return false;
 
-            return result;
-        }        
+            int sInt = (int)sec;
+            int ms = (int)(1000 * (sec - sInt));
+            ts = new TimeSpan(0, h, m, sInt, ms);
+            return true;
+        }
 
-        private bool ParseTimeEx(string s, out TimeSpan ts)
+        private static bool TryParseTimeEx(string s, out TimeSpan ts)
         {
-            bool result = false;
             ts = TimeSpan.MinValue;
-            var splits = s.TrimEnd(tSplitter).Split(tExSplitter, StringSplitOptions.RemoveEmptyEntries);
+            var parts = s.TrimEnd('_').Split(_timeSplittersEx, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 6) return false;
 
-            // 2022-05-21_16-47-52
+            if (!int.TryParse(parts[3], out var h) ||
+                !int.TryParse(parts[4], out var m) ||
+                !double.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var sec))
+                return false;
 
-            if (splits.Length == 6)
-            {
-                int hr = int.Parse(splits[3]);
-                int mn = int.Parse(splits[4]);
-                double sec = double.Parse(splits[5], CultureInfo.InvariantCulture);
-                int sc = Convert.ToInt32(sec);
-                int ms = Convert.ToInt32(1000 * (sec - sc));
-
-                ts = new TimeSpan(0, hr, mn, sc, ms);
-                result = true;
-            }
-
-            return result;
+            int sInt = (int)sec;
+            int ms = (int)(1000 * (sec - sInt));
+            ts = new TimeSpan(0, h, m, sInt, ms);
+            return true;
         }
 
-        private void PlaybackThread(object sinfo)
-        {
-            string fileName = sinfo as string;
-            TimeSpan prevLineTS = TimeSpan.MinValue;
-            TimeSpan ts = TimeSpan.MinValue;
-            bool tsInitialized = false;
-
-            try
-            {
-                using (StreamReader sr = File.OpenText(fileName))
-                {
-                    string s = string.Empty;
-                    while (((s = sr.ReadLine()) != null) && IsRunning)
-                    {
-                        int idx = s.IndexOf(' ');
-                        if (idx >= 0)
-                        {
-                            string rs = s.Substring(idx + 1);
-                            string ls = s.Substring(0, idx);
-
-                            if (ParseTime(ls, out ts) || ParseTimeEx(ls, out ts))
-                            {
-                                if (!tsInitialized)
-                                {
-                                    prevLineTS = ts;
-                                    tsInitialized = true;
-                                }
-
-                                var interval = Convert.ToInt32(ts.Subtract(prevLineTS).TotalMilliseconds);
-
-                                if (interval > 10)
-                                    Thread.Sleep(interval);
-
-                                prevLineTS = ts;
-                                NewLogLineHandler.Rise(this, new StringEventArgs(rs));
-                            }
-                        }
-                    }
-                }
-
-            }
-            catch (Exception ex)
-            {
-                LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
-            }
-
-            IsRunning = false;
-            LogPlaybackFinishedHandler.Rise(this, new EventArgs());
-        }
-
-        private void PlaybackInstantThread(object sinfo)
-        {
-            string fileName = sinfo as string;           
-
-            try
-            {
-                using (StreamReader sr = File.OpenText(fileName))
-                {
-                    string s = string.Empty;
-                    while (((s = sr.ReadLine()) != null) && IsRunning)
-                    {
-                        int idx = s.IndexOf(' ');
-                        if (idx >= 0)
-                        {
-                            string rs = s.Substring(idx + 1);
-                            string ls = s.Substring(0, idx);
-
-                            if (ParseTime(ls, out TimeSpan ts) || ParseTimeEx(ls, out ts))
-                            {                                
-                                NewLogLineHandler.Rise(this, new StringEventArgs(rs, ts));
-                            }
-                        }
-                    }
-                }
-
-            }
-            catch (Exception ex)
-            {
-                LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
-            }
-
-            IsRunning = false;
-            LogPlaybackFinishedHandler.Rise(this, new EventArgs());
-        }
-
-        #endregion
-
-        #region Events
-
-        public EventHandler<StringEventArgs> NewLogLineHandler;
-        public EventHandler LogPlaybackFinishedHandler;
-        public EventHandler<LogEventArgs> LogEventHandler;
-
-        #endregion
+        public event EventHandler<StringEventArgs>? NewLogLineHandler;
+        public event EventHandler? LogPlaybackFinishedHandler;
+        public event EventHandler<LogEventArgs>? LogEventHandler;
     }
 }

@@ -1,13 +1,25 @@
-﻿using System;
-using UCNLNMEA;
+﻿using UCNLNMEA;
 
 namespace UCNLDrivers
 {
-    public class uGNSSSerialPort : uSerialPort
+    [Obsolete]
+    public class uGNSSSerialPort : uSerialPort, IGNSSPort
     {
         #region Properties
 
-        public bool MagneticOnly { get; set; }
+        private bool _magneticOnly;
+        public bool MagneticOnly
+        {
+            get => _magneticOnly;
+            set
+            {
+                if (_magneticOnly != value)
+                {
+                    _magneticOnly = value;
+                    Heading = double.NaN;
+                }
+            }
+        }
 
         public double Heading { get; private set; }
         public double Latitude { get; private set; }
@@ -27,12 +39,7 @@ namespace UCNLDrivers
             base.IsLogIncoming = true;
             base.IsTryAlways = true;
 
-            Heading = double.NaN;
-            Latitude = double.NaN;
-            Longitude = double.NaN;
-            GroundSpeed = double.NaN;
-            CourseOverGround = double.NaN;
-            GNSSTime = DateTime.MinValue;
+            DiscardData();
         }
 
         #endregion
@@ -70,7 +77,7 @@ namespace UCNLDrivers
 
         public override void OnClosed()
         {
-            //
+            DiscardData();
         }
 
         public override void ProcessIncoming(NMEASentence sentence)
@@ -81,6 +88,9 @@ namespace UCNLDrivers
 
                 if (detected)
                     ResetTimer();
+
+                bool headingChanged = false;
+                bool locationChanged = false;
 
                 if (nSentence.SentenceID == SentenceIdentifiers.HDT)
                 {
@@ -93,7 +103,7 @@ namespace UCNLDrivers
                         if (!double.IsNaN(hdn))
                         {
                             Heading = hdn;
-                            HeadingUpdated.Rise(this, new EventArgs());
+                            headingChanged = true;
                         }
                     }
                 }
@@ -105,7 +115,7 @@ namespace UCNLDrivers
                         if (!double.IsNaN(hdn))
                         {
                             Heading = hdn;
-                            HeadingUpdated.Rise(this, new EventArgs());
+                            headingChanged = true;
                         }
                     }
                 }
@@ -117,7 +127,7 @@ namespace UCNLDrivers
                         if (!double.IsNaN(hdn))
                         {
                             Heading = hdn;
-                            HeadingUpdated.Rise(this, new EventArgs());
+                            headingChanged = true;
                         }
                     }
                 }
@@ -148,7 +158,7 @@ namespace UCNLDrivers
                         dateTime = dateTime.AddMinutes(tStamp.Minute);
                         dateTime = dateTime.AddSeconds(tStamp.Second);
                         dateTime = dateTime.AddMilliseconds(tStamp.Millisecond);
-                        
+
 
                         if (nSentence.parameters[3].ToString() == "S") latitude = -latitude;
                         if (nSentence.parameters[5].ToString() == "W") longitude = -longitude;
@@ -166,19 +176,25 @@ namespace UCNLDrivers
                             CourseOverGround = courseOverGround;
 
                         GNSSTime = dateTime;
-
-                        LocationUpdated.Rise(this, new EventArgs());
+                        locationChanged = true;
                     }
                 }
+
+                if (headingChanged)
+                    HeadingUpdated?.Invoke(this, new EventArgs());
+
+                if (locationChanged)
+                    LocationUpdated?.Invoke(this, new EventArgs());
             }
         }
 
         #endregion
 
+
         #region Events
 
-        public EventHandler HeadingUpdated;
-        public EventHandler LocationUpdated;
+        public event EventHandler HeadingUpdated;
+        public event EventHandler LocationUpdated;
 
         #endregion
     }

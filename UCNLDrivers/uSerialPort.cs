@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Ports;
-using System.Linq;
+﻿using System.IO.Ports;
 using System.Text;
-using System.Threading;
 using UCNLNMEA;
 
 namespace UCNLDrivers
 {
+    [Obsolete]
     public abstract class uSerialPort : IDisposable
     {
         #region Properties
@@ -15,7 +12,7 @@ namespace UCNLDrivers
         bool disposed = false;
 
         NMEASerialPort port;
-        PrecisionTimer timer;
+        System.Timers.Timer timer;
 
         public string PortName
         {
@@ -35,11 +32,11 @@ namespace UCNLDrivers
 
         protected bool timerIsRunning
         {
-            get { return timer.IsRunning; }
+            get { return timer.Enabled; }
         }
 
         public bool Emulation = false;
-        
+
         protected bool detected
         {
             get { return _detected; }
@@ -100,6 +97,10 @@ namespace UCNLDrivers
 
         public string ProposedPortName { get; set; }
 
+        public bool IsFixedPort { get; set; } = false;
+
+        public bool IsRawModeOnly { get; set; } = false;
+
         #endregion
 
         #region Constructor
@@ -114,10 +115,10 @@ namespace UCNLDrivers
             port_PortErrorHandler = new EventHandler<SerialErrorReceivedEventArgs>(port_PortError);
             port_RawDataReceivedHandler = new EventHandler<RawDataReceivedEventArgs>(port_RawDataReceived);
 
-            timer = new PrecisionTimer();
-            timer.Mode = Mode.Periodic;
-            timer.Period = timer_period_ms;
-            timer.Tick += (o, e) =>
+            timer = new System.Timers.Timer();
+            timer.AutoReset = true;
+            timer.Interval = timer_period_ms;
+            timer.Elapsed += (o, e) =>
             {
                 if (isActive)
                 {
@@ -134,7 +135,8 @@ namespace UCNLDrivers
 
                             if (IsTryAlways)
                             {
-                                checkedPortNames.Clear();
+                                if (!IsFixedPort)
+                                    checkedPortNames.Clear();
                                 TryNextPort();
                             }
                         }
@@ -169,7 +171,7 @@ namespace UCNLDrivers
             while (Interlocked.CompareExchange(ref timerlock, 1, 0) != 0)
                 Thread.SpinWait(1);
 
-            if (timer.IsRunning)
+            if (timer.Enabled)
                 timer.Stop();
 
             timer_cnt = 0;
@@ -182,7 +184,7 @@ namespace UCNLDrivers
             while (Interlocked.CompareExchange(ref timerlock, 1, 0) != 0)
                 Thread.SpinWait(1);
 
-            if (timer.IsRunning)
+            if (timer.Enabled)
                 timer.Stop();
 
             timer_cnt = 0;
@@ -261,15 +263,22 @@ namespace UCNLDrivers
 
             string pName = string.Empty;
 
-            // Will try the previously detected port, if it has been
-            if (!string.IsNullOrEmpty(detectedPortName) &&
-                !checkedPortNames.Contains(detectedPortName))
-                pName = detectedPortName;
-            else if (!string.IsNullOrEmpty(ProposedPortName) &&
-                     !checkedPortNames.Contains(ProposedPortName))
+            if (IsFixedPort)
+            {
                 pName = ProposedPortName;
+            }
             else
-                pName = GetNextPortName(checkedPortNames);
+            {
+                // Will try the previously detected port, if it has been
+                if (!string.IsNullOrEmpty(detectedPortName) &&
+                    !checkedPortNames.Contains(detectedPortName))
+                    pName = detectedPortName;
+                else if (!string.IsNullOrEmpty(ProposedPortName) &&
+                         !checkedPortNames.Contains(ProposedPortName))
+                    pName = ProposedPortName;
+                else
+                    pName = GetNextPortName(checkedPortNames);
+            }
 
             if (!string.IsNullOrEmpty(pName))
             {
@@ -283,7 +292,7 @@ namespace UCNLDrivers
                     port = new NMEASerialPort(new SerialPortSettings(pName,
                         Baudrate, Parity.None, DataBits.dataBits8, StopBits.One, Handshake.None));
 
-                    port.IsRawModeOnly = false;
+                    port.IsRawModeOnly = IsRawModeOnly;
                     port.PortError += port_PortErrorHandler;
                     port.NewNMEAMessage += port_NewNMEAMessageHandler;
                     port.RawDataReceived += port_RawDataReceivedHandler;
@@ -336,8 +345,15 @@ namespace UCNLDrivers
             if (!Emulation)
                 Emulation = true;
 
-            RawDataReceived.Rise(this, new RawDataReceivedEventArgs(Encoding.ASCII.GetBytes(message)));
             port_NewNMEAMessage(this, new NewNMEAMessageEventArgs(message));
+        }
+
+        public void EmulateInput(byte[] data)
+        {
+            if (!Emulation)
+                Emulation = true;
+
+            port_RawDataReceivedHandler(port, new RawDataReceivedEventArgs(data));
         }
 
         public void Start()
@@ -366,7 +382,7 @@ namespace UCNLDrivers
 
             DetectedChanged.Rise(this, EventArgs.Empty);
             IsActiveChanged.Rise(this, EventArgs.Empty);
-            
+
             OnClosed();
             LogEventHandler.Rise(this, new LogEventArgs(LogLineType.INFO, string.Format("{0} Stopped", PortDescription)));
         }
@@ -419,6 +435,10 @@ namespace UCNLDrivers
 
         private void port_RawDataReceived(object sender, RawDataReceivedEventArgs e)
         {
+            if (!IsLogIncoming)
+                LogEventHandler?.Invoke(this, new LogEventArgs(LogLineType.INFO,
+                    $"{PortName} ({PortDescription}) >> {(string.Join(" ", e.Data.Select(b => b.ToString("X2"))))}"));
+
             RawDataReceived.Rise(this, e);
         }
 

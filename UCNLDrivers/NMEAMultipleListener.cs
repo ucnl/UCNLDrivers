@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Text;
 using UCNLNMEA;
 
 namespace UCNLDrivers
@@ -117,7 +115,7 @@ namespace UCNLDrivers
         public double SpeedKmh { get; private set; }
         public double TrackTrue { get; private set; }
         public double MagneticVariation { get; private set; }
-        public bool IsValid { get; private set; }       
+        public bool IsValid { get; private set; }
 
         #endregion
 
@@ -172,7 +170,7 @@ namespace UCNLDrivers
     {
         #region Properties
 
-        public int SourceID { get; private set; }             
+        public int SourceID { get; private set; }
         public TalkerIdentifiers TalkerID { get; private set; }
         public double MagneticHeading { get; private set; }
         public double MagneticVariation { get; private set; }
@@ -203,7 +201,7 @@ namespace UCNLDrivers
 
         public int SourceID { get; private set; }
         public TalkerIdentifiers TalkerID { get; private set; }
-        public double Heading { get; private set; }        
+        public double Heading { get; private set; }
         public bool IsValid { get; private set; }
 
         #endregion
@@ -214,7 +212,7 @@ namespace UCNLDrivers
         {
             SourceID = sourceID;
             TalkerID = talkerID;
-            Heading = heading;            
+            Heading = heading;
             IsValid = isValid;
         }
 
@@ -235,10 +233,10 @@ namespace UCNLDrivers
         public string GNSSQualityIndicator { get; private set; }
         public int SatellitesInUse { get; private set; }
         public double HDOP { get; private set; }
-        public double OrthometricHeight { get; private set; } 
-                // orthometric height units parameters[9]
+        public double OrthometricHeight { get; private set; }
+        // orthometric height units parameters[9]
         public double GeiodSeparation { get; private set; }
-                // geoid separation units parameters[11]
+        // geoid separation units parameters[11]
         public double DGPSRecordAge { get; private set; }
         public int DatumID { get; private set; }
         public bool IsValid { get; private set; }
@@ -247,7 +245,7 @@ namespace UCNLDrivers
 
         #region Constructor
 
-        public GGAMessageEventArgs(int sourceID, TalkerIdentifiers talkerID, DateTime timeStamp, 
+        public GGAMessageEventArgs(int sourceID, TalkerIdentifiers talkerID, DateTime timeStamp,
             double lat, double lon, string gnssQuality, int satNum, double hdop, double orHeight, double gSep, double dgpsAge, int datumID, bool isValid)
         {
             SourceID = sourceID;
@@ -262,7 +260,7 @@ namespace UCNLDrivers
             GeiodSeparation = gSep;
             DGPSRecordAge = dgpsAge;
             DatumID = datumID;
-            IsValid = isValid;           
+            IsValid = isValid;
         }
 
         #endregion
@@ -323,7 +321,7 @@ namespace UCNLDrivers
         #region Properties
 
         public int SourceID { get; private set; }
-        public TalkerIdentifiers TalkerID { get; private set; }    
+        public TalkerIdentifiers TalkerID { get; private set; }
         public string FixSelection { get; private set; }
         public string FixType { get; private set; }
         public int[] UsedSatellitesIDs { get; private set; }
@@ -378,7 +376,7 @@ namespace UCNLDrivers
     }
 
     #endregion
-    
+
     public class NMEAMultipleListener
     {
         #region Properties
@@ -403,7 +401,7 @@ namespace UCNLDrivers
         NullChecker<int> intNullChecker = (x => x == null ? -1 : (int)x);
         NullChecker<double> doubleNullChecker = (x => x == null ? double.NaN : (double)x);
         NullChecker<string> stringNullChecker = (x => x == null ? string.Empty : (string)x);
-               
+
         #endregion
 
         #region Constructor
@@ -417,10 +415,10 @@ namespace UCNLDrivers
             bIdx = new Dictionary<int, int>();
             isSntStarted = new Dictionary<int, bool>();
 
-            fullSatellitesData = new Dictionary<int,List<SatelliteData>>();
+            fullSatellitesData = new Dictionary<int, List<SatelliteData>>();
 
             #endregion
-            
+
             #region parsers initialization
 
             standardSenteceParsers = new Dictionary<SentenceIdentifiers, ProcessCommandDelegate>()
@@ -449,7 +447,7 @@ namespace UCNLDrivers
         #region Methods
 
         #region Public
-        
+
         public void ProcessIncoming(int sourceID, byte[] data)
         {
             if (!buffer.ContainsKey(sourceID))
@@ -518,7 +516,7 @@ namespace UCNLDrivers
         //            temp = temp.Remove(0, startIdx);
 
         //        var lines = temp.Split(NMEAParser.SentenceEndDelimiter.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
-              
+
         //        for (int i = 0; i < lines.Length; i++)
         //                Parse(sourceID, string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter));                
         //    }
@@ -557,20 +555,20 @@ namespace UCNLDrivers
                                (!double.IsNaN(HDOP));
 
                 if (isValid)
-                {                    
+                {
                     if (parameters[2].ToString() == "S") latitude = -latitude;
                     if (parameters[4].ToString() == "W") longitude = -longitude;
                 }
 
-                GGASentenceReceived.Rise(this, new GGAMessageEventArgs(sourceID, talkerID, tStamp, 
+                GGASentenceReceived.Rise(this, new GGAMessageEventArgs(sourceID, talkerID, tStamp,
                     latitude, longitude, gnssQualityIndicator, satellitesInUse, HDOP, orthometricHeight, geiodSeparation, DGPSRecordAge, datumID, isValid));
-            }            
+            }
         }
 
         private void OnGSVSentence(int sourceID, TalkerIdentifiers talkerID, object[] parameters)
         {
             if (GSVSentenceReceived != null)
-            {               
+            {
                 List<SatelliteData> satellites = new List<SatelliteData>();
 
                 int totalMessages = (int)parameters[0];
@@ -613,7 +611,7 @@ namespace UCNLDrivers
                                (!double.IsNaN(longitude)) && longitude.IsValidLonDeg();
 
                 if (isValid)
-                {                  
+                {
                     if (parameters[1].ToString() == "S") latitude = -latitude;
                     if (parameters[3].ToString() == "W") longitude = -longitude;
                 }
@@ -623,7 +621,7 @@ namespace UCNLDrivers
         }
 
         private void OnRMCSentence(int sourceID, TalkerIdentifiers talkerID, object[] parameters)
-        {           
+        {
             if (RMCSentenceReceived != null)
             {
                 DateTime tStamp = parameters[0] == null ? DateTime.MinValue : (DateTime)parameters[0];
@@ -643,7 +641,7 @@ namespace UCNLDrivers
                                (parameters[11].ToString() != "N");
 
                 if (isValid)
-                {                    
+                {
                     dateTime = dateTime.AddHours(tStamp.Hour);
                     dateTime = dateTime.AddMinutes(tStamp.Minute);
                     dateTime = dateTime.AddSeconds(tStamp.Second);
@@ -681,7 +679,7 @@ namespace UCNLDrivers
         private void OnGSASentence(int sourceID, TalkerIdentifiers talkerID, object[] parameters)
         {
             if (GSASentenceReceived != null)
-            {                
+            {
                 string fixSelection = parameters[0].ToString();
                 string fixType = parameters[1].ToString();
 
@@ -704,7 +702,7 @@ namespace UCNLDrivers
         }
 
         private void OnHDGSentence(int sourceID, TalkerIdentifiers talkerID, object[] parameters)
-        {           
+        {
             if (HDGSentenceReceived != null)
             {
                 double magneticHeading = doubleNullChecker(parameters[0]);
@@ -725,7 +723,7 @@ namespace UCNLDrivers
                 double heading = doubleNullChecker(parameters[0]);
                 bool isValid = !double.IsNaN(heading);
 
-                HDTSentenceReceived.Rise(this, new HDTMessageEventArgs(sourceID, talkerID, heading, isValid));    
+                HDTSentenceReceived.Rise(this, new HDTMessageEventArgs(sourceID, talkerID, heading, isValid));
             }
         }
 
@@ -742,8 +740,8 @@ namespace UCNLDrivers
         #endregion
 
         private void Parse(int sourceID, string message)
-        {            
-            
+        {
+
             NMEAIncomingMessageReceived.Rise(this, new NMEAMessageEventArgs(sourceID, message));
 
             try
@@ -780,7 +778,7 @@ namespace UCNLDrivers
 
         public EventHandler<NMEAUnsupportedStandartEventArgs> NMEAStandartUnsupportedSentenceParsed;
         public EventHandler<NMEAUnsupportedProprietaryEventArgs> NMEAProprietaryUnsupportedSentenceParsed;
-        public EventHandler<NMEAMessageEventArgs> NMEAIncomingMessageReceived;        
+        public EventHandler<NMEAMessageEventArgs> NMEAIncomingMessageReceived;
 
         public EventHandler<HDGMessageEventArgs> HDGSentenceReceived;
         public EventHandler<HDTMessageEventArgs> HDTSentenceReceived;

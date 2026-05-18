@@ -1,7 +1,5 @@
-﻿using System;
-using System.IO.Ports;
+﻿using System.IO.Ports;
 using System.Text;
-using System.Threading;
 
 namespace UCNLDrivers
 {
@@ -77,7 +75,7 @@ namespace UCNLDrivers
 
 
 
-        public bool IsRawModeOnly { get; set; }        
+        public bool IsRawModeOnly { get; set; }
 
         #endregion
 
@@ -100,14 +98,14 @@ namespace UCNLDrivers
                 (int)PortSettings.PortBaudRate,
                 PortSettings.PortParity,
                 (int)PortSettings.PortDataBits,
-                PortSettings.PortStopBits);            
+                PortSettings.PortStopBits);
 
             serialPort.Handshake = portSettings.PortHandshake;
             serialPort.Encoding = Encoding.ASCII;
             serialPort.WriteTimeout = 1000;
             serialPort.ReadTimeout = 1000;
 
-            serialPort.ReceivedBytesThreshold = 1;            
+            serialPort.ReceivedBytesThreshold = 1;
 
             serialErrorReceivedHandler = new SerialErrorReceivedEventHandler(serialPort_ErrorReceived);
             serialDataReceivedHandler = new SerialDataReceivedEventHandler(serialPort_DataReceived);
@@ -133,7 +131,7 @@ namespace UCNLDrivers
             {
                 OnConnectionOpening();
                 serialPort.ErrorReceived += serialErrorReceivedHandler;
-                serialPort.DataReceived += serialDataReceivedHandler;
+                serialPort.DataReceived += serialDataReceivedHandler;                
                 serialPort.Open();
             }
             catch (Exception ex)
@@ -162,7 +160,7 @@ namespace UCNLDrivers
             {
                 pendingClose = true;
                 serialPort.DiscardInBuffer();
-                serialPort.DiscardOutBuffer();                
+                serialPort.DiscardOutBuffer();
                 OnConnectionClosing();
 
                 new Thread(() =>
@@ -174,7 +172,7 @@ namespace UCNLDrivers
                     catch { }
                 }).Start();
 
-                Thread.Sleep(1000); 
+                Thread.Sleep(1000);
                 pendingClose = false;
             }
             catch (Exception ex)
@@ -252,7 +250,6 @@ namespace UCNLDrivers
                 RawDataReceived.Rise(this, new RawDataReceivedEventArgs(buffer));
 
                 if (!IsRawModeOnly)
-                    //OnIncomingData(buffer);
                     OnIncomingDataEx(Encoding.ASCII.GetString(buffer));
             }
         }

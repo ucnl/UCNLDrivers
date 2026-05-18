@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Text;
-using System.Threading;
+﻿using System.Text;
 
 namespace UCNLDrivers
 {    
@@ -63,6 +60,8 @@ namespace UCNLDrivers
     {
         #region Properties
 
+        public bool RepressEvent { get; set; }
+
         public string FileName { get; private set; }
         TSQueue<string> queue;
         int synLock;
@@ -84,7 +83,49 @@ namespace UCNLDrivers
 
         #endregion
 
-        #region Methods        
+        #region Methods
+
+        public void CleanOldLogs(string logRoot, long maxTotalSizeBytes, string mask, out int filesDeleted, out long bytesFreed)
+        {
+            filesDeleted = 0;
+            bytesFreed = 0;
+
+            if (!Directory.Exists(logRoot))
+                return;
+
+            var logFiles = Directory.GetFiles(logRoot, mask, SearchOption.AllDirectories)
+                .Select(f => new FileInfo(f))
+                .Select(fi => (Path: fi.FullName, Size: fi.Length, LastWrite: fi.LastWriteTime))
+                .OrderBy(f => f.LastWrite)
+                .ToList();
+
+            long totalSize = logFiles.Sum(f => f.Size);
+
+            foreach (var file in logFiles)
+            {
+                if (totalSize <= maxTotalSizeBytes) break;
+
+                File.Delete(file.Path);
+                totalSize -= file.Size;
+                bytesFreed += file.Size;
+                filesDeleted++;
+            }
+
+            CleanEmptyDirs(logRoot);
+        }
+
+        private void CleanEmptyDirs(string root)
+        {
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                CleanEmptyDirs(dir);
+                if (!Directory.EnumerateFileSystemEntries(dir).Any())
+                    Directory.Delete(dir);
+            }
+        }
+
+
+
 
         public static string ShortDateString(DateTime dt)
         {
@@ -143,7 +184,8 @@ namespace UCNLDrivers
             var result = sb.ToString();
             queue.Enqueue(result);
 
-            TextAddedEvent.Rise(this, new TextAddedEventArgs(result));
+            if (!RepressEvent)
+                TextAddedEvent.Rise(this, new TextAddedEventArgs(result));
 
             return result;
         }
@@ -152,6 +194,67 @@ namespace UCNLDrivers
         {
             DateTime now = DateTime.Now;
             var result = Write(string.Format("<Log finished at {0}, {1}>", ShortDateString(now), LongTimeString(now)), false);
+            Flush();
+
+            return result;
+        }
+
+
+        public void WriteStartSilent()
+        {
+            DateTime now = DateTime.Now;
+            WriteSilent(string.Format("\r\n<Log started at {0}, {1}>", ShortDateString(now), LongTimeString(now)), false);
+        }
+
+        public string WriteSilent(Exception ex)
+        {
+            return WriteSilent(ex, true);
+        }
+
+        public string WriteSilent(Exception ex, bool isTimeStamp)
+        {
+            if (ex != null)
+                return WriteSilent(string.Format("{0} {1}", ex.Message, ex.StackTrace), isTimeStamp);
+            else
+                return string.Empty;
+        }
+
+        public string WriteSilent(string logString)
+        {
+            return WriteSilent(logString, true);
+        }
+
+        public string WriteSilent(string logString, bool isTimeStamp)
+        {
+            DateTime now = DateTime.Now;
+            StringBuilder sb = new StringBuilder();
+
+            if (isTimeStamp)
+            {
+                if (now.Subtract(prevLogLineTimeStamp).Days > 1)
+                    sb.AppendFormat("Log continues at {0}", ShortDateString(now));
+
+                sb.AppendFormat("{0}: ", LongTimeString(now));
+            }
+
+            sb.Append(logString);
+
+            prevLogLineTimeStamp = now;
+
+            if (!logString.EndsWith("\r\n"))
+                sb.Append("\r\n");
+
+            var result = sb.ToString();
+            queue.Enqueue(result);           
+
+            return result;
+        }
+
+
+        public string FinishLogSilent()
+        {
+            DateTime now = DateTime.Now;
+            var result = WriteSilent(string.Format("<Log finished at {0}, {1}>", ShortDateString(now), LongTimeString(now)), false);
             Flush();
             
             return result;
@@ -187,7 +290,9 @@ namespace UCNLDrivers
 
                     try
                     {
-                        File.AppendAllText(FileName, sb.ToString());                        
+                        System.IO.File.AppendAllText(FileName, sb.ToString());
+                        
+                        
                     }
                     catch { }
                 }

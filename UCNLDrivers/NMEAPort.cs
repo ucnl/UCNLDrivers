@@ -38,7 +38,7 @@ namespace UCNLDrivers
         int bIdx = 0;
         bool isSntStarted = false;
 
-        static byte nmeaSntStartByte = Convert.ToByte(NMEAParser.SentenceStartDelimiter);
+        static byte nmeaSntStartByte = Convert.ToByte(NMEAParser.SentenceStartDelimiter);        
         static byte nmeaEndByte = Convert.ToByte(NMEAParser.SentenceEndDelimiter[NMEAParser.SentenceEndDelimiter.Length - 1]);
 
         #endregion
@@ -78,7 +78,9 @@ namespace UCNLDrivers
                         {
                             isSntStarted = false;
                             string snt = Encoding.ASCII.GetString(buffer, 0, bIdx);
-                            NewNMEAMessage.BeginRise(this, new NewNMEAMessageEventArgs(snt), null, null);
+
+                            Action action = () => NewNMEAMessage(this, new NewNMEAMessageEventArgs(snt));
+                            Task.Run(action);
                         }
                         else
                         {
@@ -93,7 +95,7 @@ namespace UCNLDrivers
         protected void OnIncomingDataEx(string data)
         {
             var dataBytes = Encoding.ASCII.GetBytes(data);
-            OnIncomingData(dataBytes);            
+            OnIncomingData(dataBytes);
         }
 
 
@@ -120,7 +122,10 @@ namespace UCNLDrivers
                 if (NewNMEAMessage != null)
                 {
                     for (int i = 0; i < lines.Length; i++)
-                        NewNMEAMessage.BeginRise(this, new NewNMEAMessageEventArgs(string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter)), null, null);
+                    {
+                        Action action = () => NewNMEAMessage(this, new NewNMEAMessageEventArgs(string.Format("{0}{1}", lines[i], NMEAParser.SentenceEndDelimiter)));
+                        Task.Run(action);
+                    }
                 }
             }
 

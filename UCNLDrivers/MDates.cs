@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace UCNLDrivers
+﻿namespace UCNLDrivers
 {
     public static class MDates
     {
@@ -56,6 +50,6 @@ namespace UCNLDrivers
                 return mstr[key];
             else
                 return string.Empty;
-        }        
+        }
     }
 }

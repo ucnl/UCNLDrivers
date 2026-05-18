@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -16,7 +15,7 @@ namespace UCNLDrivers
 
         int port;
 
-        public int Port {  get { return port; } }
+        public int Port { get { return port; } }
 
         public IPAddress Address { get { return ipendpoint.Address; } }
 

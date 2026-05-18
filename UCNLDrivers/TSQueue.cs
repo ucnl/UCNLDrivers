@@ -86,7 +86,8 @@ namespace UCNLDrivers
 
             Interlocked.Decrement(ref synLock);
 
-            ItemEnqueued.BeginRise(this, new EventArgs(), null, null);
+            Action action = () => ItemEnqueued.Rise(this, null);
+            Task.Run(action);
         }
 
         /// <summary>

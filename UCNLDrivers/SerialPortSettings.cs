@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO.Ports;
+﻿using System.IO.Ports;
 using System.Text;
 
 namespace UCNLDrivers
@@ -60,17 +59,17 @@ namespace UCNLDrivers
         #endregion
 
         #region Constructor
- 
+
         public SerialPortSettings()
             : this("COM1")
         {
         }
-        
+
         public SerialPortSettings(string portNameParameter)
             : this(portNameParameter, BaudRate.baudRate9600, Parity.Even, DataBits.dataBits8, StopBits.One, Handshake.None)
         {
         }
-        
+
         public SerialPortSettings(string portNameParameter,
             BaudRate portBaudRateParameter,
             Parity portParityParameter,

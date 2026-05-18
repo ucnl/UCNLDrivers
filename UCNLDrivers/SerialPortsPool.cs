@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO.Ports;
-using System.Threading;
+﻿using System.IO.Ports;
 
 namespace UCNLDrivers
 {
@@ -96,7 +93,7 @@ namespace UCNLDrivers
         {
             return ports[portName].IsOpen;
         }
-        
+
         public void Open(string portName)
         {
             if (!ports[portName].IsOpen)
@@ -112,7 +109,7 @@ namespace UCNLDrivers
             foreach (var port in ports)
             {
                 try
-                {                    
+                {
                     port.Value.Open();
                     port.Value.DataReceived += dataReceivedHandler;
                     port.Value.ErrorReceived += errorReceivedHandler;
@@ -120,14 +117,14 @@ namespace UCNLDrivers
                 catch (Exception ex)
                 {
                     LogEventHandler.Rise(this, new LogEventArgs(LogLineType.ERROR, ex));
-                }                
+                }
             }
         }
 
         public void Close()
         {
             new Thread(() =>
-            {                
+            {
                 foreach (var port in ports)
                 {
                     if (port.Value.IsOpen)
@@ -143,7 +140,7 @@ namespace UCNLDrivers
                 }
             }).Start();
 
-            Thread.Sleep(1000);            
+            Thread.Sleep(1000);
         }
 
         public void Close(string portName)
@@ -154,7 +151,7 @@ namespace UCNLDrivers
                 ports[portName].ErrorReceived -= errorReceivedHandler;
 
                 pendingClose[portName] = true;
-                
+
                 new Thread(() =>
                     {
                         try
@@ -164,7 +161,7 @@ namespace UCNLDrivers
                         catch { }
                     }).Start();
 
-                Thread.Sleep(1000);                
+                Thread.Sleep(1000);
                 pendingClose[portName] = false;
             }
         }

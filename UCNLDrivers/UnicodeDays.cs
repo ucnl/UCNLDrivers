@@ -1,22 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.IO.Ports;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Net;
-using System.Reflection;
-using System.Runtime.ConstrainedExecution;
-using System.Security.Cryptography;
-using System.Security.Policy;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using static System.Collections.Specialized.BitVector32;
-
-namespace UCNLDrivers
+﻿namespace UCNLDrivers
 {
-
     public static class UnicodeDays
     {
         #region Properties
@@ -175,7 +158,6 @@ namespace UCNLDrivers
 { "2912", "🎻 | International Cello Day" },
 { "3112", "🎅🎄🎁 | Happy New Year!" }
         };
-
 
         #endregion
 
