@@ -140,13 +140,47 @@ namespace UCNLDrivers.uAux
 
         private void HandleMagneticHeading(NMEAStandartSentence nSentence)
         {
-            double hdn = O2D(nSentence.parameters[0]);
-            if (double.IsNaN(hdn)) return;
+            double magneticHeading = O2D(nSentence.parameters[0]);
+            if (double.IsNaN(magneticHeading)) return;
+
+            double trueHeading = magneticHeading;
+
+            if (nSentence.SentenceID == SentenceIdentifiers.HDG)
+            {
+                // HDG: $HCHDG,heading,deviation,dev_dir,variation,var_dir*CS
+                double deviation = O2D(nSentence.parameters[1]);      // девиация
+                string? devDir = nSentence.parameters[2]?.ToString(); // направление девиации (E/W)
+                double variation = O2D(nSentence.parameters[3]);      // магнитное склонение
+                string? varDir = nSentence.parameters[4]?.ToString(); // направление склонения (E/W)
+
+                // Применяем девиацию
+                if (!double.IsNaN(deviation) && !string.IsNullOrEmpty(devDir))
+                {
+                    if (devDir.Equals("E", StringComparison.OrdinalIgnoreCase))
+                        trueHeading += deviation;
+                    else if (devDir.Equals("W", StringComparison.OrdinalIgnoreCase))
+                        trueHeading -= deviation;
+                }
+
+                // Применяем магнитное склонение (вариацию)
+                if (!double.IsNaN(variation) && !string.IsNullOrEmpty(varDir))
+                {
+                    if (varDir.Equals("E", StringComparison.OrdinalIgnoreCase))
+                        trueHeading += variation;
+                    else if (varDir.Equals("W", StringComparison.OrdinalIgnoreCase))
+                        trueHeading -= variation;
+                }
+            }
+            // HDM: $HCHDM,heading,M*CS — только магнитный курс, склонение неизвестно
+            // Оставляем как есть, пересчитать в истинный без склонения невозможно
+
+            // Нормализуем в диапазон 0-360°
+            trueHeading = ((trueHeading % 360) + 360) % 360;
 
             if (!detected) detected = true;
 
-            Heading = hdn;
-            IsHeadingTrue = false;
+            Heading = trueHeading;
+            IsHeadingTrue = (nSentence.SentenceID == SentenceIdentifiers.HDG) ? true : false;
             HeadingUpdated?.Invoke(this, EventArgs.Empty);
         }
 
