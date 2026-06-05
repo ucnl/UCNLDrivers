@@ -16,12 +16,21 @@ namespace UCNLDrivers.uAux
             if (_sources.ContainsKey(source.Id))
                 throw new InvalidOperationException($"Source '{source.Id}' already registered");
 
-            _sources[source.Id] = source;
+            _sources[source.Id] = source;            
             source.OnStatusChanged += (_, _) =>
             {
-                OnSourceStatusChanged?.Invoke(this,
-                    new AuxSourceStatusEventArgs(GetInfo(source)));
-            };
+                var info = GetInfo(source);
+                OnSourceStatusChanged?.Invoke(this, new AuxSourceStatusEventArgs(info));
+
+                // Автозапуск следующего в цепочке
+                if (info.Status == AuxStatus.Detected &&
+                    _chainMap.TryGetValue(source.Id, out var nextId) &&
+                    _sources.TryGetValue(nextId, out var next) &&
+                    next.Status == AuxStatus.Inactive)
+                {
+                    Activate(nextId);
+                }
+            };            
         }
 
         public bool Remove(string id)
@@ -58,26 +67,34 @@ namespace UCNLDrivers.uAux
         /// <summary>
         /// Запустить цепочку активации: каждый следующий запускается после обнаружения предыдущего
         /// </summary>
+        private Dictionary<string, string> _chainMap = new();
+
         public void ActivateChain(params string[] ids)
         {
             if (ids.Length == 0) return;
 
-            Activate(ids[0]);
-
+            // Строим карту цепочки: prevId -> nextId
+            _chainMap.Clear();
             for (int i = 1; i < ids.Length; i++)
-            {
-                var prevId = ids[i - 1];
-                var nextId = ids[i];
+                _chainMap[ids[i - 1]] = ids[i];
 
-                var prev = GetSource(prevId);
-                if (prev != null)
+            // Запускаем первый в цепочке
+            var first = GetSource(ids[0]);
+            if (first == null) return;
+
+            if (first.Status == AuxStatus.Detected)
+            {
+                // Уже обнаружен — запускаем следующий сразу
+                if (_chainMap.TryGetValue(ids[0], out var nextId) &&
+                    _sources.TryGetValue(nextId, out var next) &&
+                    next.Status == AuxStatus.Inactive)
                 {
-                    prev.OnStatusChanged += (_, _) =>
-                    {
-                        if (prev.Status == AuxStatus.Detected)
-                            Activate(nextId);
-                    };
+                    Activate(nextId);
                 }
+            }
+            else if (first.Status == AuxStatus.Inactive)
+            {
+                Activate(ids[0]);
             }
         }
 
