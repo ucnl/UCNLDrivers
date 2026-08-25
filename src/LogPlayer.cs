@@ -105,11 +105,11 @@ namespace UCNLDrivers
                 int idx = line.IndexOf(' ');
                 if (idx < 0) continue;
 
-                var timeStr = line.Substring(0, idx);
+                var timeStr = line.Substring(0, idx).TrimEnd(':');
                 var text = line.Substring(idx + 1);
 
                 if (TryParseTime(timeStr, out var ts) || TryParseTimeEx(timeStr, out ts))
-                    yield return (ts, text);
+                    yield return (ts, text + "\r\n");
             }
         }
 
