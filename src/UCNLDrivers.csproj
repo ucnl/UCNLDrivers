@@ -5,7 +5,7 @@
     <PackageId>$(MSBuildProjectName)</PackageId>
     <Description>UCNL $(MSBuildProjectName) library</Description>
     <PackageTags>UCNL;$(MSBuildProjectName)</PackageTags>
-    <Version>1.1.8</Version>
+    <Version>1.1.10</Version>
   </PropertyGroup>
 
   <ItemGroup>

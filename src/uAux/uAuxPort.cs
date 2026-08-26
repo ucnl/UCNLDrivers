@@ -340,7 +340,7 @@ namespace UCNLDrivers.uAux
 
         private void Port_NewNMEAMessage(object? sender, NewNMEAMessageEventArgs e)
         {
-            ResetTimer();
+            //ResetTimer();
 
             if (IsLogIncoming)
                 LogEventHandler?.Invoke(this, new LogEventArgs(LogLineType.INFO,

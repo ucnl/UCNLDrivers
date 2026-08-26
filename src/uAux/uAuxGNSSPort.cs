@@ -128,10 +128,10 @@ namespace UCNLDrivers.uAux
 
         private void HandleHDT(NMEAStandartSentence nSentence)
         {
-            double hdn = O2D(nSentence.parameters[0]);
-            if (double.IsNaN(hdn)) return;
-
             if (!detected) detected = true;
+
+            double hdn = O2D(nSentence.parameters[0]);
+            if (double.IsNaN(hdn)) return;            
 
             Heading = hdn;
             IsHeadingTrue = true;
@@ -140,6 +140,8 @@ namespace UCNLDrivers.uAux
 
         private void HandleMagneticHeading(NMEAStandartSentence nSentence)
         {
+            if (!detected) detected = true;
+
             double magneticHeading = O2D(nSentence.parameters[0]);
             if (double.IsNaN(magneticHeading)) return;
 
@@ -175,9 +177,7 @@ namespace UCNLDrivers.uAux
             // Оставляем как есть, пересчитать в истинный без склонения невозможно
 
             // Нормализуем в диапазон 0-360°
-            trueHeading = ((trueHeading % 360) + 360) % 360;
-
-            if (!detected) detected = true;
+            trueHeading = ((trueHeading % 360) + 360) % 360;            
 
             Heading = trueHeading;
             IsHeadingTrue = (nSentence.SentenceID == SentenceIdentifiers.HDG) ? true : false;
@@ -186,6 +186,8 @@ namespace UCNLDrivers.uAux
 
         private void HandleRMC(NMEAStandartSentence nSentence)
         {
+            if (!detected) detected = true;
+
             // Парсим параметры с нормальными именами
             var timeOfDay = nSentence.parameters[0] as DateTime?;
             var status = nSentence.parameters[1]?.ToString();
@@ -204,9 +206,7 @@ namespace UCNLDrivers.uAux
             if (mode == "N") return;
 
             if (latHemi == "S") lat = -lat;
-            if (lonHemi == "W") lon = -lon;
-
-            if (!detected) detected = true;
+            if (lonHemi == "W") lon = -lon;            
 
             Latitude = lat;
             Longitude = lon;
